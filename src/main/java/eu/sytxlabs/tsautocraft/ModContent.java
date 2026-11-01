@@ -104,8 +104,9 @@ public final class ModContent {
 	/** Loads the class and thereby all static registrations. */
 	public static void init() {}
 
+	/** Same as Tom's wooden storage blocks: wood sound, strength 3, mined with an axe (tag mineable/axe). */
 	private static BlockBehaviour.Properties defaults(BlockBehaviour.Properties p) {
-		return p.mapColor(MapColor.METAL).sound(SoundType.COPPER).strength(3);
+		return p.mapColor(MapColor.WOOD).sound(SoundType.WOOD).strength(3);
 	}
 
 	private static <B extends Block> B block(String name, Function<BlockBehaviour.Properties, B> factory) {
