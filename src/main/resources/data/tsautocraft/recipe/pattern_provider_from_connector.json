@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "tsautocraft:pattern_provider_connector"
+  ],
+  "result": {
+    "id": "tsautocraft:pattern_provider"
+  }
+}

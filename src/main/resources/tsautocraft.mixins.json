@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "eu.sytxlabs.tsautocraft.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "StorageTerminalMenuMixin"
+  ],
+  "client": [
+    "client.AbstractStorageTerminalScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

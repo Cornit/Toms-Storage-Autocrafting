@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "S S",
+    " C ",
+    "S S"
+  ],
+  "key": {
+    "C": "tsautocraft:exporter",
+    "S": "#c:rods/wooden"
+  },
+  "result": {
+    "id": "tsautocraft:exporter_framed",
+    "count": 1
+  },
+  "group": "tsautocraft:exporter"
+}

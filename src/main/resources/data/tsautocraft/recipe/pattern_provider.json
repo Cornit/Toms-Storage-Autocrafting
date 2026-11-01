@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IRI",
+    "cCc",
+    "IRI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "R": "minecraft:redstone",
+    "c": "toms_storage:inventory_cable",
+    "C": "minecraft:crafting_table"
+  },
+  "result": {
+    "id": "tsautocraft:pattern_provider",
+    "count": 1
+  }
+}

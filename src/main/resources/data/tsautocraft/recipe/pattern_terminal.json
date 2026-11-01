@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "pRp",
+    "ITI",
+    "pcp"
+  ],
+  "key": {
+    "p": "minecraft:paper",
+    "R": "minecraft:redstone",
+    "I": "minecraft:iron_ingot",
+    "T": "toms_storage:crafting_terminal",
+    "c": "toms_storage:inventory_cable"
+  },
+  "result": {
+    "id": "tsautocraft:pattern_terminal",
+    "count": 1
+  }
+}

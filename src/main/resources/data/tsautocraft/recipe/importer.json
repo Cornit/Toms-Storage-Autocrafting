@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IHI",
+    " B "
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "H": "minecraft:hopper",
+    "B": "toms_storage:basic_inventory_hopper"
+  },
+  "result": {
+    "id": "tsautocraft:importer",
+    "count": 1
+  },
+  "group": "tsautocraft:importer"
+}

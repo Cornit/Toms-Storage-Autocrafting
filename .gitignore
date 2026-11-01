@@ -1,0 +1,39 @@
+# Gradle / Loom
+.gradle
+build
+out
+classes
+remappedSrc
+
+# Dev client/server working directory (worlds, logs, configs, crash reports)
+run
+
+# Eclipse
+.classpath
+.settings
+.project
+bin
+*.launch
+
+# IntelliJ IDEA (keeps shared run configurations out as well, Loom regenerates them)
+.idea
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs / JVM crash dumps
+*.log
+hs_err_pid*
+
+# Local leftovers
+codes
+old_stuff
+_to_delete

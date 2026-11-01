@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "tsautocraft",
+  "version": "${version}",
+
+  "name": "Tom's Storage Autocrafting",
+  "description": "Unofficial AE2-style autocrafting addon for Tom's Simple Storage: Pattern Terminal, Pattern Provider, Exporter, Importer, Requester and Autocrafting Terminal. Request crafts directly in Tom's terminals.",
+  "authors": [
+    "SytxLabs"
+  ],
+  "contact": {
+    "homepage": "https://sytxlabs.eu",
+    "sources": "https://github.com/SytxLabs/Toms-Storage-Autocrafting",
+    "issues": "https://github.com/SytxLabs/Toms-Storage-Autocrafting/issues"
+  },
+
+  "license": "MIT",
+  "icon": "assets/tsautocraft/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "eu.sytxlabs.tsautocraft.TsAutocraft"
+    ],
+    "client": [
+      "eu.sytxlabs.tsautocraft.TsAutocraftClient"
+    ],
+    "jei_mod_plugin": [
+      "eu.sytxlabs.tsautocraft.compat.jei.TsAutocraftJeiPlugin"
+    ]
+  },
+  "mixins": [
+    "tsautocraft.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "fabric-api": "*",
+    "minecraft": ">=26.3 <26.4",
+    "java": ">=25",
+    "toms_storage": ">=2.12.2"
+  },
+  "suggests": {
+    "jei": "*"
+  },
+  "custom": {
+    "modmenu": {
+      "parent": "toms_storage",
+      "update_checker": true
+    }
+  }
+}

@@ -1,0 +1,85 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+repositories {
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "Modrinth"
+				url = "https://api.modrinth.com/maven"
+			}
+		}
+		filter {
+			includeGroup "maven.modrinth"
+		}
+	}
+	// Cloth Config (wird von Tom's Storage zur Laufzeit gebraucht, ist aber per jar-in-jar enthalten)
+	maven { url "https://maven.shedaniel.me/" }
+	maven { url "https://maven.terraformersmc.com/releases/" }
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+dependencies {
+	// 26.x ist unobfuskiert: keine Mappings, kein modImplementation mehr
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	compileOnly "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	localRuntime "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Tom's Simple Storage – wir nutzen dessen Kabelnetz, Lager-API, Filter und GUI-Basisklassen
+	implementation "maven.modrinth:toms-storage:${project.toms_storage_version}"
+
+	// JEI: optional integration (recipe transfer into the Pattern Terminal); JEI + MezzConfig also run in the dev client
+	compileOnly "maven.modrinth:jei:${project.jei_version}"
+	if (!project.hasProperty('noJei')) { // gradlew runClient -PnoJei: dev client without JEI
+		localRuntime "maven.modrinth:jei:${project.jei_version}"
+		localRuntime "maven.modrinth:mezzconfig:${project.mezzconfig_version}"
+	}
+}
+
+loom {
+	runs {
+		client {
+			// Native crashes of the dev client (driver/overlay DLLs) otherwise leave no trace
+			vmArg "-XX:ErrorFile=${rootDir}/run/hs_err_pid%p.log"		}
+	}
+}
+
+processResources {
+	inputs.property "version", project.version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+	it.options.encoding = "UTF-8"
+}
+
+java {
+	withSourcesJar()
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+	from "LICENSE"
+}
+
+// Reiner Java-Test des Crafting-Planers (ohne Minecraft): ./gradlew plannerTest
+tasks.register('plannerTest', JavaExec) {
+	group = 'verification'
+	dependsOn compileJava
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'eu.sytxlabs.tsautocraft.planner.PlannerSelfTest'
+}

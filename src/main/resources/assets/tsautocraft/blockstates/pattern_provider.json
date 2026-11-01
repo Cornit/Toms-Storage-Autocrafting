@@ -1,0 +1,50 @@
+{
+  "variants": {
+    "facing=north,powered=false": {
+      "model": "tsautocraft:block/pattern_provider"
+    },
+    "facing=north,powered=true": {
+      "model": "tsautocraft:block/pattern_provider_on"
+    },
+    "facing=south,powered=false": {
+      "model": "tsautocraft:block/pattern_provider",
+      "y": 180
+    },
+    "facing=south,powered=true": {
+      "model": "tsautocraft:block/pattern_provider_on",
+      "y": 180
+    },
+    "facing=east,powered=false": {
+      "model": "tsautocraft:block/pattern_provider",
+      "y": 90
+    },
+    "facing=east,powered=true": {
+      "model": "tsautocraft:block/pattern_provider_on",
+      "y": 90
+    },
+    "facing=west,powered=false": {
+      "model": "tsautocraft:block/pattern_provider",
+      "y": 270
+    },
+    "facing=west,powered=true": {
+      "model": "tsautocraft:block/pattern_provider_on",
+      "y": 270
+    },
+    "facing=up,powered=false": {
+      "model": "tsautocraft:block/pattern_provider",
+      "x": 270
+    },
+    "facing=up,powered=true": {
+      "model": "tsautocraft:block/pattern_provider_on",
+      "x": 270
+    },
+    "facing=down,powered=false": {
+      "model": "tsautocraft:block/pattern_provider",
+      "x": 90
+    },
+    "facing=down,powered=true": {
+      "model": "tsautocraft:block/pattern_provider_on",
+      "x": 90
+    }
+  }
+}

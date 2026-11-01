@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IDI",
+    "RTR",
+    "IcI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "D": "minecraft:diamond",
+    "R": "minecraft:redstone",
+    "T": "toms_storage:storage_terminal",
+    "c": "toms_storage:inventory_cable"
+  },
+  "result": {
+    "id": "tsautocraft:autocrafting_terminal",
+    "count": 1
+  }
+}

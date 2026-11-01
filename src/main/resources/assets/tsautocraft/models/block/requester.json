@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "tsautocraft:block/requester_side",
+    "north": "tsautocraft:block/requester_front",
+    "south": "tsautocraft:block/requester_front",
+    "east": "tsautocraft:block/requester_front",
+    "west": "tsautocraft:block/requester_front",
+    "up": "tsautocraft:block/requester_side",
+    "down": "tsautocraft:block/requester_side"
+  }
+}

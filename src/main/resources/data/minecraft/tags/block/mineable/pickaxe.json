@@ -1,0 +1,14 @@
+{
+  "values": [
+    "tsautocraft:pattern_provider",
+    "tsautocraft:pattern_terminal",
+    "tsautocraft:autocrafting_terminal",
+    "tsautocraft:requester",
+    "tsautocraft:exporter",
+    "tsautocraft:importer",
+    "tsautocraft:pattern_provider_connector",
+    "tsautocraft:exporter_framed",
+    "tsautocraft:importer_framed",
+    "tsautocraft:pattern_provider_connector_framed"
+  ]
+}

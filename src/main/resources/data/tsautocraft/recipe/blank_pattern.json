@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "PRP",
+    "PIP",
+    "PPP"
+  ],
+  "key": {
+    "P": "minecraft:paper",
+    "R": "minecraft:redstone",
+    "I": "minecraft:iron_ingot"
+  },
+  "result": {
+    "id": "tsautocraft:blank_pattern",
+    "count": 4
+  }
+}

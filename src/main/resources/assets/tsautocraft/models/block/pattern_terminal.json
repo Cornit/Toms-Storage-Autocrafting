@@ -1,0 +1,6 @@
+{
+  "parent": "toms_storage:block/crafting_terminal",
+  "textures": {
+    "2": "tsautocraft:block/pattern_terminal_front"
+  }
+}
