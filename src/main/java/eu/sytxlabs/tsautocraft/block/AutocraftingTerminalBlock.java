@@ -20,8 +20,7 @@ import com.tom.storagemod.block.AbstractStorageTerminalBlock;
 import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity;
 
 /**
- * Autocrafting Terminal: shape, placement and cable connection of a Tom's terminal (connects only on its back),
- * but no storage view - it runs the crafting jobs of the network.
+ * Autocrafting Terminal: shape, placement and cable connection of a Tom's terminal (connects only on its back), but no storage view - it runs the crafting jobs of the network.
  */
 public class AutocraftingTerminalBlock extends AbstractStorageTerminalBlock {
 

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "S S",
+    " C ",
+    "S S"
+  ],
+  "key": {
+    "C": "tsautocraft:crafting_emitter_directional",
+    "S": "#c:rods/wooden"
+  },
+  "result": {
+    "id": "tsautocraft:crafting_emitter_directional_framed",
+    "count": 1
+  },
+  "group": "tsautocraft:crafting_emitter_directional"
+}

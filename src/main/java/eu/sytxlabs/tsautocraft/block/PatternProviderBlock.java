@@ -9,38 +9,37 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 
-import eu.sytxlabs.tsautocraft.TsAutocraftConfig;
+import eu.sytxlabs.tsautocraft.blockentity.PatternProviderBlockEntity;
 
 /**
- * Pattern Provider. {@link #POWERED} lights the front for a moment after a crafter delivery. Only with
- * {@code "crafterTrigger": "redstone"} in the config is that also a redstone pulse, and ONLY to the block in front (the crafter).
+ * Pattern Provider, full block without a front: supplies every crafter/machine around it (round robin), cables connect on any
+ * side. {@link #POWERED} lights it for a moment after a delivery. A redstone signal (crafter trigger "redstone", Redstone
+ * Upgrade, machine profile) only goes to the machine that just got its items. The connector variant has a front instead.
  */
-public class PatternProviderBlock extends DirectionalNodeBlock {
+public class PatternProviderBlock extends NodeBlock {
 	public static final BooleanProperty POWERED = BlockStateProperties.POWERED;
 
 	public PatternProviderBlock(Block.Properties properties, BEFactory factory) {
 		super(properties, factory);
-		registerDefaultState(defaultBlockState().setValue(FACING, Direction.NORTH).setValue(POWERED, false));
+		registerDefaultState(defaultBlockState().setValue(POWERED, false));
 	}
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-		builder.add(FACING, POWERED);
+		builder.add(POWERED);
 	}
 
 	@Override
 	public boolean isSignalSource(BlockState state) {
-		return TsAutocraftConfig.providerEmitsRedstone();
+		return true;
 	}
 
-	// side = direction from the receiving block towards us. The crafter is at pos + FACING,
-	// so from its point of view we are in direction FACING.getOpposite().
+	// side = direction from the receiving block towards us, so the receiver is on side.getOpposite()
 	@Override
 	public int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction side) {
-		return TsAutocraftConfig.providerEmitsRedstone() && state.getValue(POWERED) && state.getValue(FACING).getOpposite() == side ? 15 : 0;
+		return level.getBlockEntity(pos) instanceof PatternProviderBlockEntity p && p.emitsSignal(side.getOpposite()) ? 15 : 0;
 	}
 
-	// No strong signal: otherwise the crafter would also power redstone around it.
 	@Override
 	public int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction side) {
 		return 0;

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "tsautocraft:crafting_emitter_directional_framed",
+    "minecraft:water_bucket"
+  ],
+  "result": {
+    "id": "tsautocraft:crafting_emitter_directional"
+  },
+  "group": "tsautocraft:crafting_emitter_directional"
+}

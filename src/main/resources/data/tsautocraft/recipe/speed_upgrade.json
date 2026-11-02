@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "GRG",
+    "PBP",
+    "GRG"
+  ],
+  "key": {
+    "G": "minecraft:gold_ingot",
+    "R": "minecraft:redstone",
+    "P": "minecraft:paper",
+    "B": "tsautocraft:blank_pattern"
+  },
+  "result": {
+    "id": "tsautocraft:speed_upgrade",
+    "count": 1
+  }
+}

@@ -16,7 +16,6 @@ import net.minecraft.world.level.Level;
 import com.tom.storagemod.inventory.IInventoryAccess;
 import com.tom.storagemod.inventory.StoredItemStack;
 
-/** Small helpers for the Fabric Transfer API and Tom's network access. */
 public final class StorageUtil {
 	private StorageUtil() {}
 
@@ -52,6 +51,29 @@ public final class StorageUtil {
 				if (st.isEmpty()) continue;
 				if (storage.insert(ItemVariant.of(st), st.getCount(), t) < st.getCount()) return false;
 			}
+			return true;
+		}
+	}
+
+	/**
+	 * Inserts every stack, each one spread over {@code targets} in order, all or nothing.
+	 * @param commit false = only test whether everything fits
+	 */
+	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public static boolean insertAll(List<Storage<ItemVariant>> targets, List<ItemStack> stacks, boolean commit) {
+		if (targets.isEmpty()) return false;
+		try (Transaction t = Transaction.openOuter()) {
+			for (ItemStack st : stacks) {
+				if (st.isEmpty()) continue;
+				long left = st.getCount();
+				ItemVariant v = ItemVariant.of(st);
+				for (Storage<ItemVariant> target : targets) {
+					left -= target.insert(v, left, t);
+					if (left <= 0) break;
+				}
+				if (left > 0) return false;
+			}
+			if (commit) t.commit();
 			return true;
 		}
 	}

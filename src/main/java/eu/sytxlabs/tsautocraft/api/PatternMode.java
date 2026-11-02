@@ -1,0 +1,135 @@
+package eu.sytxlabs.tsautocraft.api;
+
+import java.util.List;
+import java.util.function.ToLongFunction;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+
+import com.tom.storagemod.inventory.IInventoryAccess;
+
+import eu.sytxlabs.tsautocraft.api.CraftingProvider.DispatchResult;
+import eu.sytxlabs.tsautocraft.pattern.PatternData;
+import eu.sytxlabs.tsautocraft.pattern.PatternEncoder;
+import eu.sytxlabs.tsautocraft.util.ItemKey;
+
+/**
+ * A kind of pattern: how the Pattern Terminal encodes it and how a Pattern Provider delivers it to the machine in front of it.
+ * Built-in: crafting, processing, smelting. Other mods register their own in their {@code ModInitializer} with {@link PatternModes#register(PatternMode)} (on both sides, in the same order).
+ * <p>
+ * The mode is stored in the pattern by {@link #id()}; patterns of an unknown mode behave like processing patterns.
+ */
+public interface PatternMode {
+	Identifier id();
+
+	/** Item shown on the Pattern Terminal's mode button. */
+	ItemStack icon();
+
+	/** Display name, translation key {@code pattern_mode.<namespace>.<path>} by default. */
+	default Component name() {
+		return Component.translatable("pattern_mode." + id().getNamespace() + "." + id().getPath());
+	}
+
+	/**
+	 * true: one item per grid slot and the outputs are computed by {@link #computeOutputs}; false: free amounts and
+	 * outputs set by hand (like processing patterns).
+	 */
+	default boolean fixedInputs() {
+		return false;
+	}
+
+	/** true: the 9 grid positions matter (crafting); false: inputs are moved to the front of the grid. */
+	default boolean keepsGridPositions() {
+		return false;
+	}
+
+	/** Outputs for the current grid ({@link #fixedInputs()} modes only), empty list if the grid is no valid recipe. */
+	default List<ItemStack> computeOutputs(Level level, List<ItemStack> grid) {
+		return List.of();
+	}
+
+	/** Builds the pattern from the Pattern Terminal grid (or a JEI/REI transfer). */
+	PatternEncoder.Result encode(Level level, List<ItemStack> grid, List<ItemStack> outputs, boolean substitutes);
+
+	/** Can a pattern with this data be used at all? */
+	default boolean isValid(PatternData d) {
+		return d.inputs().stream().anyMatch(e -> !e.isEmpty()) && d.outputs().stream().anyMatch(e -> !e.isEmpty());
+	}
+
+	/** Server: adjusts the inputs of a JEI/REI transfer before encoding (e.g. REI's shaped recipe lists to 3x3). */
+	default List<ItemStack> transferInputs(Level level, List<ItemStack> inputs) {
+		return inputs;
+	}
+
+	/** Is this JEI recipe (usually a {@code RecipeHolder}) of this mode? The first matching mode wins, else processing. */
+	default boolean matchesRecipe(Object recipe) {
+		return false;
+	}
+
+	/** Is this REI display category of this mode? */
+	default boolean matchesReiCategory(Identifier category) {
+		return false;
+	}
+
+	/**
+	 * Delivers the inputs for up to {@link DispatchContext#maxCrafts()} crafts to the machine in front of the provider.
+	 * Take items only through {@link DispatchContext#pull(List)}.
+	 */
+	Outcome dispatch(DispatchContext ctx, PatternData pattern);
+
+	/** {@code crafts} = crafts started (must be > 0 for {@link DispatchResult#OK}). */
+	record Outcome(DispatchResult result, int crafts) {
+		public static Outcome ok(int crafts) {
+			return new Outcome(DispatchResult.OK, crafts);
+		}
+
+		public static Outcome fail(DispatchResult result) {
+			return new Outcome(result, 0);
+		}
+	}
+
+	/** What a Pattern Provider offers to a mode during one delivery. */
+	interface DispatchContext {
+		Level level();
+
+		BlockPos providerPos();
+
+		/** Direction from the provider to the target. */
+		Direction facing();
+
+		default BlockPos targetPos() {
+			return providerPos().relative(facing());
+		}
+
+		/** Network storage (Tom's merged inventory). */
+		IInventoryAccess network();
+
+		/** Usable stock per item (stock minus what other jobs reserved). */
+		ToLongFunction<ItemKey> available();
+
+		/** Crafts this delivery may start at most (1, more with Stack Upgrades). */
+		int maxCrafts();
+
+		/** Blocking mode of the provider. */
+		boolean blocking();
+
+		/** Speed Upgrades installed in the provider. */
+		int speed();
+
+		/** Pulls all stacks from the network or nothing (null if something is missing); counts as used by the job. */
+		List<ItemStack> pull(List<ItemStack> wanted);
+
+		/** Puts items back into the network; whatever does not fit is buffered by the provider. */
+		void giveBack(ItemStack stack);
+
+		/** The provider block entity (the built-in modes use its internals). */
+		Object provider();
+
+		/** Gives the target a redstone signal for {@code ticks} ticks (e.g. to start a machine after a delivery). */
+		default void redstonePulse(int ticks) {}
+	}
+}

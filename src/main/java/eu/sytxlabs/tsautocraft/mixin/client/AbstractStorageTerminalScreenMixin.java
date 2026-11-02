@@ -19,8 +19,7 @@ import eu.sytxlabs.tsautocraft.client.CraftRequestScreen;
 import eu.sytxlabs.tsautocraft.menu.CraftableTerminal;
 
 /**
- * Requests from Tom's terminals: craftable items get a green "+" marker. A normal click on a craftable item
- * that is not in storage (amount 0), or Ctrl + click on any craftable item, opens {@link CraftRequestScreen}.
+ * Requests from Tom's terminals: craftable items get a green "+" marker. A normal click on a craftable item that is not in storage (amount 0), or Ctrl + click on any craftable item, opens {@link CraftRequestScreen}.
  */
 @Mixin(value = AbstractStorageTerminalScreen.class, remap = false)
 public abstract class AbstractStorageTerminalScreenMixin {

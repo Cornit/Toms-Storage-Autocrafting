@@ -1,12 +1,6 @@
 {
-  "parent": "minecraft:block/cube",
+  "parent": "minecraft:block/cube_all",
   "textures": {
-    "particle": "tsautocraft:block/pattern_provider_side",
-    "north": "tsautocraft:block/pattern_provider_front",
-    "south": "tsautocraft:block/machine_back",
-    "east": "tsautocraft:block/pattern_provider_side",
-    "west": "tsautocraft:block/pattern_provider_side",
-    "up": "tsautocraft:block/pattern_provider_side",
-    "down": "tsautocraft:block/pattern_provider_side"
+    "all": "tsautocraft:block/pattern_provider_front"
   }
 }

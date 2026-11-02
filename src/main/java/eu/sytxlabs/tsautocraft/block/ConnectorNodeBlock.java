@@ -3,8 +3,6 @@ package eu.sytxlabs.tsautocraft.block;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jetbrains.annotations.Nullable;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -43,15 +41,17 @@ import com.tom.storagemod.inventory.InventoryCableNetwork;
 import com.tom.storagemod.util.BlockFace;
 import com.tom.storagemod.util.TickerUtil;
 
-import eu.sytxlabs.tsautocraft.TsAutocraftConfig;
+import org.jetbrains.annotations.Nullable;
+
+import eu.sytxlabs.tsautocraft.blockentity.CraftingEmitterBlockEntity;
+import eu.sytxlabs.tsautocraft.blockentity.PatternProviderBlockEntity;
 
 /**
- * Connector-shaped network node, modelled after Tom's Inventory Cable Connector: a plate on the target side,
- * a small stub towards the network and cable arms to every connected cable.
+ * Connector-shaped network node, modelled after Tom's Inventory Cable Connector: a plate on the target side, a small stub towards the network and cable arms to every connected cable.
  * <p>
  * {@link #FACING} points at the target inventory/machine/crafter. The six direction properties tell the model
  * which cable arms to draw (for the facing side: whether a block is there at all).
- * {@link #POWERED} is only used when {@code emitsPulse} is true (Pattern Provider connector).
+ * {@link #POWERED} is only used when {@code emitsPulse} is true (Pattern Provider connector, directional Crafting Emitter).
  */
 public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCable {
 	public static final BooleanProperty UP = BlockStateProperties.UP;
@@ -73,12 +73,7 @@ public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCab
 		this.factory = factory;
 		this.emitsPulse = emitsPulse;
 		this.shapes = makeShapes(0.125f);
-		registerDefaultState(defaultBlockState()
-				.setValue(DOWN, false).setValue(UP, false)
-				.setValue(NORTH, false).setValue(SOUTH, false)
-				.setValue(EAST, false).setValue(WEST, false)
-				.setValue(FACING, Direction.DOWN)
-				.setValue(POWERED, false));
+		registerDefaultState(defaultBlockState().setValue(DOWN, false).setValue(UP, false).setValue(NORTH, false).setValue(SOUTH, false).setValue(EAST, false).setValue(WEST, false).setValue(FACING, Direction.DOWN).setValue(POWERED, false));
 	}
 
 	@Override
@@ -108,25 +103,26 @@ public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCab
 		return InteractionResult.SUCCESS;
 	}
 
-	// ------------------------------------------------------------------ Redstone (Pattern Provider connector)
-
 	@Override
 	public boolean isSignalSource(BlockState state) {
-		return emitsPulse && TsAutocraftConfig.providerEmitsRedstone();
+		return emitsPulse;
 	}
 
-	// side = direction from the receiving block towards us; the crafter at pos + FACING sees us at FACING.getOpposite()
 	@Override
 	public int getSignal(BlockState state, BlockGetter level, BlockPos pos, Direction side) {
-		return emitsPulse && TsAutocraftConfig.providerEmitsRedstone() && state.getValue(POWERED) && state.getValue(FACING).getOpposite() == side ? 15 : 0;
+		if (!emitsPulse || !state.getValue(POWERED) || state.getValue(FACING).getOpposite() != side) return 0;
+		BlockEntity be = level.getBlockEntity(pos);
+		// Pattern Provider: only during its pulse; Crafting Emitter: while powered
+		return be instanceof PatternProviderBlockEntity p && p.emitsSignal(state.getValue(FACING)) || be instanceof CraftingEmitterBlockEntity ? 15 : 0;
 	}
 
 	@Override
 	public int getDirectSignal(BlockState state, BlockGetter level, BlockPos pos, Direction side) {
 		return 0;
 	}
+	//endregion
 
-	// ------------------------------------------------------------------ Placement and connections
+	//region Placement and connections
 
 	@Override
 	public BlockState getStateForPlacement(BlockPlaceContext context) {
@@ -146,8 +142,7 @@ public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCab
 	}
 
 	private static boolean connects(BlockState state, BlockState neighbor, Direction dir) {
-		Direction f = state.getValue(FACING);
-		return dir == f ? !neighbor.isAir() : IInventoryCable.canConnect(neighbor, dir);
+		return dir == state.getValue(FACING) ? !neighbor.isAir() : IInventoryCable.canConnect(neighbor, dir);
 	}
 
 	@Override
@@ -182,8 +177,9 @@ public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCab
 		}
 		return s;
 	}
+	//endregion
 
-	// ------------------------------------------------------------------ Shape (same as Tom's cable connector)
+	//region Shape (same as Tom's cable connector)
 
 	@Override
 	public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
@@ -204,9 +200,7 @@ public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCab
 		VoxelShape[] arms = new VoxelShape[DIRS.length];
 		for (int i = 0; i < DIRS.length; ++i) {
 			Direction d = DIRS[i];
-			arms[i] = Shapes.box(
-					0.5D + Math.min(-apothem, d.getStepX() * 0.5D), 0.5D + Math.min(-apothem, d.getStepY() * 0.5D), 0.5D + Math.min(-apothem, d.getStepZ() * 0.5D),
-					0.5D + Math.max(apothem, d.getStepX() * 0.5D), 0.5D + Math.max(apothem, d.getStepY() * 0.5D), 0.5D + Math.max(apothem, d.getStepZ() * 0.5D));
+			arms[i] = Shapes.box(0.5D + Math.min(-apothem, d.getStepX() * 0.5D), 0.5D + Math.min(-apothem, d.getStepY() * 0.5D), 0.5D + Math.min(-apothem, d.getStepZ() * 0.5D), 0.5D + Math.max(apothem, d.getStepX() * 0.5D), 0.5D + Math.max(apothem, d.getStepY() * 0.5D), 0.5D + Math.max(apothem, d.getStepZ() * 0.5D));
 		}
 		VoxelShape[] combos = new VoxelShape[64];
 		for (int k = 0; k < 64; ++k) {
@@ -225,20 +219,21 @@ public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCab
 
 	private static VoxelShape part(Direction dir, float w, float wo, float h, float ho, float depth, float depthOff) {
 		return switch (dir) {
-		case DOWN -> shapeBox(ho, depthOff, wo, h + ho, depth + depthOff, w + wo);
-		case UP -> shapeBox(ho, 16f - depth, wo, h + ho, 16f - depthOff, w + wo);
-		case NORTH -> shapeBox(wo, ho, depthOff, w + wo, h + ho, depth + depthOff);
-		case SOUTH -> shapeBox(wo, ho, 16f - depth, w + wo, h + ho, 16f - depthOff);
-		case WEST -> shapeBox(depthOff, ho, wo, depth + depthOff, h + ho, w + wo);
-		case EAST -> shapeBox(16f - depth, ho, wo, 16f - depthOff, h + ho, w + wo);
+			case DOWN -> shapeBox(ho, depthOff, wo, h + ho, depth + depthOff, w + wo);
+			case UP -> shapeBox(ho, 16f - depth, wo, h + ho, 16f - depthOff, w + wo);
+			case NORTH -> shapeBox(wo, ho, depthOff, w + wo, h + ho, depth + depthOff);
+			case SOUTH -> shapeBox(wo, ho, 16f - depth, w + wo, h + ho, 16f - depthOff);
+			case WEST -> shapeBox(depthOff, ho, wo, depth + depthOff, h + ho, w + wo);
+			case EAST -> shapeBox(16f - depth, ho, wo, 16f - depthOff, h + ho, w + wo);
 		};
 	}
 
 	private static VoxelShape shapeBox(double x1, double y1, double z1, double x2, double y2, double z2) {
 		return Block.box(Math.min(x1, x2), Math.min(y1, y2), Math.min(z1, z2), Math.max(x1, x2), Math.max(y1, y2), Math.max(z1, z2));
 	}
+	//endregion
 
-	// ------------------------------------------------------------------ Keep Tom's cable network cache up to date
+	//region Keep Tom's cable network cache up to date
 
 	@Override
 	public void destroy(LevelAccessor level, BlockPos pos, BlockState state) {
@@ -258,4 +253,5 @@ public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCab
 			}
 		}
 	}
+	//endregion
 }

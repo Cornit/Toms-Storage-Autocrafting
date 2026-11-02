@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "tsautocraft:item/crafting_emitter_directional"
+  }
+}

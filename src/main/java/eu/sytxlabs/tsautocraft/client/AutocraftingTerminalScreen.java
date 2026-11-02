@@ -21,21 +21,25 @@ import com.tom.storagemod.screen.TSContainerScreen;
 import com.tom.storagemod.util.IDataReceiver;
 
 import eu.sytxlabs.tsautocraft.TsAutocraft;
-import eu.sytxlabs.tsautocraft.job.CraftingJob;
+import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.job.CraftingJob.JobView;
-import eu.sytxlabs.tsautocraft.menu.AutocraftingTerminalMenu;
+import eu.sytxlabs.tsautocraft.job.CraftingJob;
+import eu.sytxlabs.tsautocraft.job.JobText;
 import eu.sytxlabs.tsautocraft.menu.AutocraftingTerminalMenu.Craftable;
+import eu.sytxlabs.tsautocraft.menu.AutocraftingTerminalMenu;
 import eu.sytxlabs.tsautocraft.menu.MenuUtil;
 
 /**
  * Top: craftable items (9x3, mouse wheel scrolls). Click selects, double click requests.
  * Middle: amount + "Request", below that the message/missing items.
- * Bottom: running jobs, click the cross to cancel.
+ * Bottom: running jobs; per line priority arrow (click cycles), pause/resume and the cross to cancel.
+ * The tooltip of a job lists every step with why it is stuck.
  */
 public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTerminalMenu> implements IDataReceiver {
 	private static final Identifier GUI = TsAutocraft.id("textures/gui/autocrafting_terminal.png");
 	private static final int COLS = 9, ROWS = 3, GRID_X = 8, GRID_Y = 18;
 	private static final int JOBS_Y = 128, JOB_H = 11, JOB_ROWS = 3;
+	private static final int PRIO_X = 138, PAUSE_X = 149, CANCEL_X = 161, LINE_W = 128;
 
 	private EditBox amountBox;
 	private int scroll, jobScroll;
@@ -53,16 +57,16 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		amountBox = new EditBox(font, leftPos + 8, topPos + 95, 40, 14, Component.translatable("label.tsautocraft.amount"));
 		amountBox.setMaxLength(6);
 		amountBox.setValue("1");
-		amountBox.setResponder(s -> digitsOnly(amountBox, s)); // EditBox has no input filter in 26.x
+		amountBox.setResponder(s -> digitsOnly(amountBox, s));
 		addRenderableWidget(amountBox);
-		addRenderableWidget(Button.builder(Component.literal("+16"), b -> addAmount(16)).bounds(leftPos + 50, topPos + 94, 24, 16).build());
-		addRenderableWidget(Button.builder(Component.literal("+64"), b -> addAmount(64)).bounds(leftPos + 75, topPos + 94, 24, 16).build());
+		addRenderableWidget(Button.builder(Component.literal("+16"), _ -> addAmount(16)).bounds(leftPos + 50, topPos + 94, 24, 16).build());
+		addRenderableWidget(Button.builder(Component.literal("+64"), _ -> addAmount(64)).bounds(leftPos + 75, topPos + 94, 24, 16).build());
 		addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.request"), b -> request()).bounds(leftPos + 102, topPos + 93, 68, 18).build());
 	}
 
 	private void addAmount(int n) {
 		long v = parseAmount() + n;
-		if (parseAmount() == 1 && n > 1) v = n; // from 1 jump straight to 16/64
+		if (parseAmount() == 1 && n > 1) v = n;
 		amountBox.setValue(Long.toString(Math.min(v, 100_000)));
 	}
 
@@ -80,7 +84,6 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 	}
 
 	private void onUpdate() {
-		// Drop the selection if its pattern is gone
 		if (!selected.isEmpty() && menu.craftables.stream().noneMatch(c -> ItemStack.isSameItemSameComponents(c.item(), selected))) {
 			selected = ItemStack.EMPTY;
 		}
@@ -102,7 +105,7 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		menu.receive(in);
 	}
 
-	// ------------------------------------------------------------------ Input
+	//region Input
 
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
@@ -113,13 +116,14 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 			if (doubleClick) request();
 			return true;
 		}
-		// Cancel cross in the job list
-		if (mx >= 160 && mx < 170 && my >= JOBS_Y && my < JOBS_Y + JOB_ROWS * JOB_H) {
+		if (mx >= PRIO_X && mx < 170 && my >= JOBS_Y && my < JOBS_Y + JOB_ROWS * JOB_H) {
 			int row = (int) ((my - JOBS_Y) / JOB_H);
 			List<JobView> visible = visibleJobs();
-			if (row < visible.size()) {
+			if (row < visible.size() && visible.get(row).state() <= CraftingJob.State.WAITING.ordinal()) {
+				if (minecraft.player == null) return false;
 				int id = visible.get(row).id();
-				MenuUtil.sendToServer(minecraft.player, out -> out.putInt("cancel", id));
+				String key = mx >= CANCEL_X ? "cancel" : mx >= PAUSE_X ? "pause" : "prio";
+				MenuUtil.sendToServer(minecraft.player, out -> out.putInt(key, id));
 				return true;
 			}
 		}
@@ -160,13 +164,15 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		int from = Mth.clamp(jobScroll, 0, maxJobScroll());
 		return menu.jobs.subList(from, Math.min(from + JOB_ROWS, menu.jobs.size()));
 	}
+	//endregion
 
-	// ------------------------------------------------------------------ Rendering
+	//region Rendering
 
 	@Override
 	public void extractBackground(GuiGraphicsExtractor gr, int mouseX, int mouseY, float a) {
 		super.extractBackground(gr, mouseX, mouseY, a);
 		gr.blit(RenderPipelines.GUI_TEXTURED, GUI, leftPos, topPos, 0, 0, imageWidth, imageHeight, 256, 256);
+		GuiUtil.upgradePanel(gr, leftPos, topPos, imageWidth, AutocraftingTerminalBlockEntity.UPGRADE_SLOTS);
 	}
 
 	@Override
@@ -176,13 +182,72 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		if (idx >= 0 && idx < menu.craftables.size()) {
 			graphics.setTooltipForNextFrame(font, menu.craftables.get(idx).item(), mouseX, mouseY);
 		}
+		JobView hovered = jobAt(mouseX - leftPos, mouseY - topPos);
+		if (hovered != null) graphics.setComponentTooltipForNextFrame(font, jobTooltip(hovered), mouseX, mouseY);
+		Component button = jobButtonTooltip(mouseX - leftPos, mouseY - topPos);
+		if (button != null) graphics.setTooltipForNextFrame(font, button, mouseX, mouseY);
+	}
+
+	private Component jobButtonTooltip(double mx, double my) {
+		if (mx < PRIO_X || mx >= 170 || my < JOBS_Y || my >= JOBS_Y + JOB_ROWS * JOB_H) return null;
+		int row = (int) ((my - JOBS_Y) / JOB_H);
+		List<JobView> visible = visibleJobs();
+		if (row >= visible.size() || visible.get(row).state() > CraftingJob.State.WAITING.ordinal()) return null;
+		JobView j = visible.get(row);
+		if (mx >= CANCEL_X) return Component.translatable("tooltip.tsautocraft.job.cancel");
+		if (mx >= PAUSE_X) return Component.translatable(j.paused() ? "tooltip.tsautocraft.job.resume" : "tooltip.tsautocraft.job.pause");
+		return Component.translatable("tooltip.tsautocraft.job.priority", priorityName(j.priority()));
+	}
+
+	private JobView jobAt(double mx, double my) {
+		if (mx < GRID_X || mx >= PRIO_X || my < JOBS_Y || my >= JOBS_Y + JOB_ROWS * JOB_H) return null;
+		int row = (int) ((my - JOBS_Y) / JOB_H);
+		List<JobView> visible = visibleJobs();
+		return row < visible.size() ? visible.get(row) : null;
+	}
+
+	/** Job name, status, priority and the progress of every step with why it is stuck. */
+	private static List<Component> jobTooltip(JobView j) {
+		List<Component> lines = new java.util.ArrayList<>();
+		lines.add(Component.translatable("label.tsautocraft.item_count", j.amount(), j.target().getHoverName()));
+		lines.add(statusText(j).copy().withStyle(net.minecraft.ChatFormatting.GRAY));
+		lines.add(Component.translatable("label.tsautocraft.priority", priorityName(j.priority())).withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+		for (CraftingJob.StepView st : j.steps()) {
+			boolean done = st.done() >= st.total();
+			lines.add(Component.translatable("label.tsautocraft.step_line", st.output().getHoverName(), st.done(), st.total(), percent(st.done(), st.total())).withStyle(done ? net.minecraft.ChatFormatting.DARK_GREEN : net.minecraft.ChatFormatting.GRAY));
+			Component why = stepReason(st);
+			if (!done && why != null) lines.add(Component.literal("  ").append(why).withStyle(net.minecraft.ChatFormatting.RED));
+		}
+		return lines;
+	}
+
+	/** "Missing: 3x Iron Ingot (1/4)" / "Provider busy (12, 64, -3)", null if the step is not stuck. */
+	private static Component stepReason(CraftingJob.StepView st) {
+		CraftingJob.Reason r = CraftingJob.Reason.values()[Mth.clamp(st.reason(), 0, CraftingJob.Reason.values().length - 1)];
+		if (r == CraftingJob.Reason.NONE) return null;
+		MutableComponent c;
+		if (r == CraftingJob.Reason.WAITING_ITEMS && st.need() > 0) {
+			c = Component.translatable("reason.tsautocraft.step_missing", st.reasonItem().getHoverName(), st.have(), st.need());
+		} else {
+			String key = "reason.tsautocraft." + r.name().toLowerCase(java.util.Locale.ROOT);
+			c = st.reasonItem().isEmpty() ? Component.translatable(key) : Component.translatable(key, st.reasonItem().getHoverName());
+		}
+		if (st.providerName().isPresent()) c.append(" ").append(Component.translatable("label.tsautocraft.at_provider", st.providerName().get()));
+		else st.provider().ifPresent(p -> c.append(" ").append(Component.translatable("label.tsautocraft.at_pos", p.getX(), p.getY(), p.getZ())));
+		return c;
+	}
+
+	static Component priorityName(int prio) {
+		return Component.translatable(prio > 0 ? "label.tsautocraft.priority.high" : prio < 0 ? "label.tsautocraft.priority.low" : "label.tsautocraft.priority.normal");
+	}
+
+	private static long percent(long done, long total) {
+		return total <= 0 ? 100 : Math.clamp(done * 100 / total, 0, 100);
 	}
 
 	@Override
 	protected void extractLabels(GuiGraphicsExtractor g, int xm, int ym) {
 		super.extractLabels(g, xm, ym);
-
-		// Grid
 		for (int r = 0; r < ROWS; r++) {
 			for (int c = 0; c < COLS; c++) {
 				int i = (r + scroll) * COLS + c;
@@ -203,7 +268,6 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 			g.text(font, (scroll + 1) + "/" + (maxScroll() + 1), 150, 6, 0xFF404040, false);
 		}
 
-		// Selection
 		if (!selected.isEmpty()) {
 			g.item(selected, 8, 75);
 			g.text(font, selected.getHoverName(), 28, 79, 0xFF404040, false);
@@ -211,18 +275,6 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 			g.text(font, Component.translatable("label.tsautocraft.select"), 8, 79, 0xFF707070, false);
 		}
 
-		// Message + missing items
-		if (!menu.message.isEmpty()) {
-			MutableComponent line = Component.translatable(menu.message);
-			for (var m : menu.missing) {
-				line.append(" ").append(Component.translatable("label.tsautocraft.item_count", m.count(), m.item().getHoverName()));
-			}
-			String text = font.plainSubstrByWidth(line.getString(), 162);
-			int color = menu.missing.isEmpty() && menu.message.endsWith("started") ? 0xFF006400 : 0xFF8B0000;
-			g.text(font, text, 8, 114, color, false);
-		}
-
-		// Jobs
 		List<JobView> visible = visibleJobs();
 		if (visible.isEmpty()) {
 			g.text(font, Component.translatable("label.tsautocraft.no_jobs"), 8, JOBS_Y + 1, 0xFF707070, false);
@@ -230,14 +282,20 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		for (int i = 0; i < visible.size(); i++) {
 			JobView j = visible.get(i);
 			int y = JOBS_Y + i * JOB_H + 1;
-			Component lineText = Component.translatable("label.tsautocraft.job_line", j.amount(), j.target().getHoverName(),
-					j.done(), j.total(), statusText(j));
-			// Requester jobs in blue
-			g.text(font, font.plainSubstrByWidth(lineText.getString(), 150), 8, y, j.requester() ? 0xFF1F3F8F : 0xFF303030, false);
-			if (j.state() <= CraftingJob.State.WAITING.ordinal()) g.text(font, "✕", 161, y, 0xFFAA0000, false);
+			Component lineText = JobText.line(j);
+			int color = j.paused() ? 0xFF808080 : j.requester() ? 0xFF1F3F8F : 0xFF303030;
+			g.text(font, font.plainSubstrByWidth(lineText.getString(), LINE_W), 8, y, color, false);
+			if (j.state() <= CraftingJob.State.WAITING.ordinal()) {
+				String prio = j.priority() > 0 ? "↑" : j.priority() < 0 ? "↓" : "·";
+				g.text(font, prio, PRIO_X + 1, y, j.priority() > 0 ? 0xFF2E9E2E : j.priority() < 0 ? 0xFF8B6B00 : 0xFF707070, false);
+				g.text(font, j.paused() ? "▶" : "Ⅱ", PAUSE_X + 1, y, 0xFF1F3F8F, false);
+				g.text(font, "✕", CANCEL_X, y, 0xFFAA0000, false);
+			}
+			int barY = JOBS_Y + i * JOB_H + JOB_H - 2, barW = LINE_W;
+			g.fill(8, barY, 8 + barW, barY + 1, 0xFF8B8B8B);
+			if (j.total() > 0) g.fill(8, barY, 8 + (int) (barW * Math.clamp(j.done(), 0, j.total()) / j.total()), barY + 1, j.requester() ? 0xFF3F6FCF : 0xFF2E9E2E);
 		}
 		if (menu.jobs.size() > JOB_ROWS) {
-			// Mouse wheel over the list scrolls; show the visible range
 			int from = Mth.clamp(jobScroll, 0, maxJobScroll());
 			String range = (from + 1) + "-" + (from + visible.size()) + "/" + menu.jobs.size();
 			g.text(font, range, 170 - font.width(range), JOBS_Y + JOB_ROWS * JOB_H, 0xFF707070, false);
@@ -245,12 +303,7 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 	}
 
 	static Component statusText(JobView j) {
-		CraftingJob.State st = CraftingJob.State.values()[Mth.clamp(j.state(), 0, CraftingJob.State.values().length - 1)];
-		if (st == CraftingJob.State.DONE) return Component.translatable("status.tsautocraft.done");
-		if (st == CraftingJob.State.CANCELLED) return Component.translatable("status.tsautocraft.cancelled");
-		CraftingJob.Reason r = CraftingJob.Reason.values()[Mth.clamp(j.reason(), 0, CraftingJob.Reason.values().length - 1)];
-		String key = "reason.tsautocraft." + r.name().toLowerCase(java.util.Locale.ROOT);
-		return j.reasonItem().isEmpty() ? Component.translatable(key) : Component.translatable(key, j.reasonItem().getHoverName());
+		return JobText.status(j);
 	}
 
 	/** Strips everything but digits; re-entrant call from setValue is a no-op because the text is then clean. */
@@ -267,5 +320,7 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 
 	@Override
 	public void getExclusionAreas(Consumer<Box> consumer) {
+		consumer.accept(GuiUtil.upgradeBox(leftPos, topPos, imageWidth, AutocraftingTerminalBlockEntity.UPGRADE_SLOTS));
 	}
+	//endregion
 }

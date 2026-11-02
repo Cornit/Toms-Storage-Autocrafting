@@ -32,16 +32,13 @@ public final class MenuUtil {
 		}
 	}
 
-	/** Server -> client: build a tag and send it to the open screen. */
 	public static void sendToClient(Player player, Consumer<ValueOutput> writer) {
 		if (!(player instanceof ServerPlayer sp)) return;
 		TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, sp.registryAccess());
 		writer.accept(out);
-		CompoundTag tag = out.buildResult();
-		NetworkHandler.sendTo(sp, tag);
+		NetworkHandler.sendTo(sp, out.buildResult());
 	}
 
-	/** Client -> server: build a tag and send it to the open menu. */
 	public static void sendToServer(Player player, Consumer<ValueOutput> writer) {
 		TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, player.registryAccess());
 		writer.accept(out);

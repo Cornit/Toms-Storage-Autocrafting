@@ -39,6 +39,17 @@ dependencies {
 
 	// JEI: optional integration (recipe transfer into the Pattern Terminal); JEI + MezzConfig also run in the dev client
 	compileOnly "maven.modrinth:jei:${project.jei_version}"
+	// REI: optional integration (same features as JEI); API only, REI itself is not in the dev client
+	compileOnly("me.shedaniel:RoughlyEnoughItems-api-fabric:${project.rei_version}") { transitive = false }
+	compileOnly("me.shedaniel.cloth:basic-math:0.6.0") { transitive = false }
+	// Config screen: Cloth Config ships inside Tom's Storage, Mod Menu is optional
+	compileOnly("maven.modrinth:cloth-config:${project.cloth_config_version}") { transitive = false }
+	compileOnly("maven.modrinth:modmenu:${project.modmenu_version}") { transitive = false }
+	// Mod Menu only on request: the dev client crashes natively more often with it (gradlew runClient -PwithModMenu)
+	if (project.hasProperty('withModMenu')) localRuntime "maven.modrinth:modmenu:${project.modmenu_version}"
+	// Jade: optional block tooltips (provider/terminal status)
+	compileOnly "maven.modrinth:jade:${project.jade_version}"
+	if (!project.hasProperty('noJade')) localRuntime "maven.modrinth:jade:${project.jade_version}"
 	if (!project.hasProperty('noJei')) { // gradlew runClient -PnoJei: dev client without JEI
 		localRuntime "maven.modrinth:jei:${project.jei_version}"
 		localRuntime "maven.modrinth:mezzconfig:${project.mezzconfig_version}"
@@ -75,6 +86,22 @@ java {
 jar {
 	from "LICENSE"
 }
+
+// API for other mods: the api package plus the data types its signatures use (compile against it, the full mod at runtime)
+def apiClasses = ['eu/sytxlabs/tsautocraft/api/**', 'eu/sytxlabs/tsautocraft/job/CraftingJob*', 'eu/sytxlabs/tsautocraft/job/JobScheduler*',
+		'eu/sytxlabs/tsautocraft/pattern/PatternData*', 'eu/sytxlabs/tsautocraft/pattern/PatternEncoder*', 'eu/sytxlabs/tsautocraft/util/ItemKey*']
+tasks.register('apiJar', Jar) {
+	group = 'build'
+	archiveClassifier = 'api'
+	from(sourceSets.main.output) { include apiClasses.collect { it.endsWith('**') ? it : it + '.class' } }
+	from "LICENSE"
+}
+tasks.register('apiSourcesJar', Jar) {
+	group = 'build'
+	archiveClassifier = 'api-sources'
+	from(sourceSets.main.allJava) { include apiClasses.collect { it.endsWith('**') ? it : it + '.java' } }
+}
+assemble.dependsOn apiJar, apiSourcesJar
 
 // Reiner Java-Test des Crafting-Planers (ohne Minecraft): ./gradlew plannerTest
 tasks.register('plannerTest', JavaExec) {

@@ -6,7 +6,16 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "tsautocraft:exporter_framed"
+          "name": "tsautocraft:exporter_framed",
+          "functions": [
+            {
+              "function": "minecraft:copy_components",
+              "source": "block_entity",
+              "include": [
+                "minecraft:custom_name"
+              ]
+            }
+          ]
         }
       ],
       "conditions": [

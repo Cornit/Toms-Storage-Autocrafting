@@ -1,11 +1,14 @@
 package eu.sytxlabs.tsautocraft.blockentity;
 
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
 import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -14,10 +17,15 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import com.tom.storagemod.inventory.IInventoryAccess;
 import com.tom.storagemod.inventory.PlatformInventoryAccess;
+import com.tom.storagemod.item.IItemFilter;
 
 import eu.sytxlabs.tsautocraft.ModContent;
+import eu.sytxlabs.tsautocraft.api.IOMode;
+import eu.sytxlabs.tsautocraft.api.IOModes;
+import eu.sytxlabs.tsautocraft.api.Upgrades;
 import eu.sytxlabs.tsautocraft.menu.IOMenu;
 import eu.sytxlabs.tsautocraft.network.TerminalCrafting;
+import eu.sytxlabs.tsautocraft.util.FluidUtil;
 import eu.sytxlabs.tsautocraft.util.StorageUtil;
 
 /**
@@ -28,6 +36,16 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 
 	public ImporterBlockEntity(BlockPos pos, BlockState state) {
 		super(ModContent.IMPORTER_BE, pos, state);
+	}
+
+	@Override
+	public Identifier upgradeHost() {
+		return Upgrades.IMPORTER;
+	}
+
+	@Override
+	protected IOMode defaultMode() {
+		return IOModes.PRIORITY;
 	}
 
 	@Override
@@ -47,20 +65,40 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 				return;
 			}
 		}
+		if (importFluid(net)) return;
 		if (source == null) return;
 
+		IOMode mode = getMode();
 		boolean filtered = hasAnyFilter();
-		ItemVariant chosen = null;
-		long amount = 0;
-		// Select first, extract outside the loop (do not modify the storage while iterating)
+		int size = 0;
+		for (StorageView<ItemVariant> _ : source) size++;
+		int start = mode.start(modeContext, size);
+		ItemVariant chosen = null, wrapped = null;
+		long amount = 0, wrappedAmount = 0;
+		int index = -1, chosenIndex = -1, wrappedIndex = -1;
 		for (StorageView<ItemVariant> view : source) {
+			index++;
 			if (view.isResourceBlank() || view.getAmount() <= 0) continue;
 			ItemVariant v = view.getResource();
 			ItemStack probe = v.toStack(1);
-			if (filtered && !matchesAny(probe)) continue;
-			chosen = v;
-			amount = Math.min(view.getAmount(), Math.min(maxPerOp(), probe.getMaxStackSize()));
-			break;
+			if (filtered && matchesAny(probe) == mode.blacklist()) continue;
+			long n = Math.min(view.getAmount(), Math.min(maxPerOp(), probe.getMaxStackSize()));
+			if (index >= start) {
+				chosen = v;
+				amount = n;
+				chosenIndex = index;
+				break;
+			}
+			if (wrapped == null) {
+				wrapped = v;
+				wrappedAmount = n;
+				wrappedIndex = index;
+			}
+		}
+		if (chosen == null) {
+			chosen = wrapped;
+			amount = wrappedAmount;
+			chosenIndex = wrappedIndex;
 		}
 		if (chosen == null) return;
 
@@ -70,17 +108,46 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 			t.commit();
 		}
 		if (extracted <= 0) return;
+		mode.moved(modeContext, chosenIndex);
 
 		ItemStack rest = net.pushStack(chosen.toStack((int) extracted));
-		// Tell the crafting jobs of the network that results came back
 		TerminalCrafting.itemsArrived(level, worldPosition, chosen.toStack(1), extracted - rest.getCount());
 		if (!rest.isEmpty()) {
-			// Network full: put back, otherwise buffer
 			rest = StorageUtil.insert(source, rest);
 			buffer = rest;
 			backoff = 8;
 		}
 		setChanged();
+	}
+
+	/** Fluids: a filter that is a filled container (e.g. lava bucket) takes a matching empty container from the network, fills it from the machine's fluid storage and stores the filled one. Not with blacklist modes. */
+	private boolean importFluid(IInventoryAccess net) {
+		if (getMode().blacklist()) return false;
+		Storage<FluidVariant> tank = null;
+		for (int i = 0; i < SLOTS; i++) {
+			ItemStack f = filters.getItem(i);
+			if (f.isEmpty() || f.getItem() instanceof IItemFilter) continue;
+			FluidUtil.Content c = FluidUtil.content(f.copyWithCount(1));
+			if (c == null || c.empty().isEmpty() || level == null) continue;
+			if (tank == null) tank = FluidStorage.SIDED.find(level, worldPosition.relative(facing()), facing().getOpposite());
+			if (tank == null) return false;
+			try (Transaction t = Transaction.openOuter()) {
+				if (tank.extract(c.fluid(), c.amount(), t) < c.amount()) continue; // not enough yet
+			}
+			ItemStack empty = net.pullMatchingStack(c.empty(), 1);
+			if (empty.isEmpty()) continue;
+			ItemStack filled = FluidUtil.fill(empty, c.fluid(), f.copyWithCount(1), tank);
+			if (filled == null) {
+				buffer = net.pushStack(empty);
+				continue;
+			}
+			ItemStack rest = net.pushStack(filled.copy());
+			TerminalCrafting.itemsArrived(level, worldPosition, filled, filled.getCount() - rest.getCount());
+			if (!rest.isEmpty()) buffer = rest;
+			setChanged();
+			return true;
+		}
+		return false;
 	}
 
 	@Override
@@ -90,6 +157,6 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 
 	@Override
 	public Component getDisplayName() {
-		return Component.translatable("block.tsautocraft.importer");
+		return customName.orElse(Component.translatable("block.tsautocraft.importer"));
 	}
 }

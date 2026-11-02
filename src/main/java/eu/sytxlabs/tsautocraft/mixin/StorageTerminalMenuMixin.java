@@ -31,8 +31,7 @@ import eu.sytxlabs.tsautocraft.network.TerminalCrafting;
 /**
  * Autocrafting in Tom's terminals (Storage, Crafting and our Pattern Terminal):
  * <ul>
- *   <li>Server: sends the craftable items of the network ({@code tsac_craft}) and handles preview/request
- *       messages through {@link CraftRequestProtocol}.</li>
+ *   <li>Server: sends the craftable items of the network ({@code tsac_craft}) and handles preview/request messages through {@link CraftRequestProtocol}.</li>
  *   <li>Client: craftables that are not in storage are added to the item list with amount 0.</li>
  * </ul>
  */
@@ -88,8 +87,7 @@ public abstract class StorageTerminalMenuMixin implements CraftableTerminal {
 		tsac$listBefore = itemList;
 		if (in.getBooleanOr("tsac_c", false)) {
 			tsac$craftables.clear();
-			in.listOrEmpty("tsac_craft", ItemStack.OPTIONAL_CODEC).stream()
-					.filter(s -> !s.isEmpty()).forEach(s -> tsac$craftables.add(new TerminalItemStack(s.copyWithCount(1), 0)));
+			in.listOrEmpty("tsac_craft", ItemStack.OPTIONAL_CODEC).stream().filter(s -> !s.isEmpty()).forEach(s -> tsac$craftables.add(new TerminalItemStack(s.copyWithCount(1), 0)));
 			tsac$listBefore = null; // force a merge
 		}
 	}

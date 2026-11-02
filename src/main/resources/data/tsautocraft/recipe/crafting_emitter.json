@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "IRI",
+    "cLc",
+    "ITI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "R": "minecraft:redstone",
+    "c": "toms_storage:inventory_cable",
+    "L": "toms_storage:level_emitter",
+    "T": "minecraft:redstone_torch"
+  },
+  "result": {
+    "id": "tsautocraft:crafting_emitter",
+    "count": 1
+  }
+}

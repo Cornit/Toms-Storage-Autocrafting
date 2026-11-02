@@ -15,18 +15,17 @@ import com.tom.storagemod.inventory.IInventoryAccess;
 import com.tom.storagemod.inventory.InventoryCableNetwork;
 import com.tom.storagemod.inventory.PlatformInventoryAccess;
 
-import eu.sytxlabs.tsautocraft.blockentity.PatternProviderBlockEntity;
+import eu.sytxlabs.tsautocraft.api.CraftingProvider;
 
 /**
- * Connection of an addon block to Tom's cable network.
- * Like Tom's Inventory Interface it finds the Inventory Connector through {@link InventoryCableNetwork}
- * and also collects all Pattern Providers on the same network.
+ * Connection of an addon block to Tom's cable network. Like Tom's Inventory Interface it finds the Inventory Connector through {@link InventoryCableNetwork}
+ * and also collects all crafting providers (Pattern Providers, Crafting Emitters) on the same network.
  */
 public class NetworkLink {
 	private static final int RESCAN_TICKS = 20;
 
 	private WeakReference<IInventoryConnector> connector;
-	private List<WeakReference<PatternProviderBlockEntity>> providers = Collections.emptyList();
+	private List<WeakReference<CraftingProvider>> providers = Collections.emptyList();
 	private long lastScan;
 	private boolean dirty = true;
 
@@ -38,14 +37,14 @@ public class NetworkLink {
 		lastScan = t;
 
 		connector = null;
-		List<WeakReference<PatternProviderBlockEntity>> provs = new ArrayList<>();
+		List<WeakReference<CraftingProvider>> provs = new ArrayList<>();
 		Collection<BlockPos> nodes = InventoryCableNetwork.getNetwork(level).getNetworkNodes(pos);
 		for (BlockPos p : nodes) {
 			if (!level.isLoaded(p)) continue;
 			BlockEntity be = level.getBlockEntity(p);
 			if (connector == null && be instanceof IInventoryConnector c && c.hasConnectedInventories()) {
 				connector = new WeakReference<>(c);
-			} else if (be instanceof PatternProviderBlockEntity pp) {
+			} else if (be instanceof CraftingProvider pp) {
 				provs.add(new WeakReference<>(pp));
 			}
 		}
@@ -69,12 +68,12 @@ public class NetworkLink {
 		return access(level, pos) != PlatformInventoryAccess.EMPTY;
 	}
 
-	public List<PatternProviderBlockEntity> providers(Level level, BlockPos pos) {
+	public List<CraftingProvider> providers(Level level, BlockPos pos) {
 		scanIfNeeded(level, pos);
-		List<PatternProviderBlockEntity> out = new ArrayList<>(providers.size());
+		List<CraftingProvider> out = new ArrayList<>(providers.size());
 		for (var ref : providers) {
-			PatternProviderBlockEntity p = ref.get();
-			if (p != null && !p.isRemoved()) out.add(p);
+			CraftingProvider p = ref.get();
+			if (p instanceof BlockEntity be && !be.isRemoved()) out.add(p);
 		}
 		return out;
 	}

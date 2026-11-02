@@ -1,6 +1,7 @@
 package eu.sytxlabs.tsautocraft.util;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.mojang.serialization.Codec;
@@ -15,8 +16,7 @@ import net.minecraft.world.level.storage.ValueOutput;
 import eu.sytxlabs.tsautocraft.pattern.PatternData;
 
 /**
- * Container for "ghost" items (template only, not a real item). Counts are not limited to the max stack size,
- * so processing patterns can ask for e.g. 128 sand.
+ * Container for "ghost" items (template only, not a real item). Counts are not limited to the max stack size, so processing patterns can ask for e.g. 128 sand.
  */
 public class GhostContainer implements Container {
 	private final NonNullList<ItemStack> items;
@@ -70,7 +70,7 @@ public class GhostContainer implements Container {
 
 	@Override
 	public void clearContent() {
-		for (int i = 0; i < items.size(); i++) items.set(i, ItemStack.EMPTY);
+        Collections.fill(items, ItemStack.EMPTY);
 		setChanged();
 	}
 

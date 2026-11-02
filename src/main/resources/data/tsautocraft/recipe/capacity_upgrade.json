@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "ICI",
+    "PBP",
+    "ICI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "C": "minecraft:chest",
+    "P": "minecraft:paper",
+    "B": "tsautocraft:blank_pattern"
+  },
+  "result": {
+    "id": "tsautocraft:capacity_upgrade",
+    "count": 1
+  }
+}

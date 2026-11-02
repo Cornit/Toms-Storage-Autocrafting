@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    "tsautocraft:pattern_terminal",
+    "tsautocraft:autocrafting_terminal"
+  ]
+}

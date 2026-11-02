@@ -19,10 +19,12 @@ import com.tom.storagemod.block.entity.PaintedBlockEntity;
 import com.tom.storagemod.client.UnbakedPaintedModel;
 
 import eu.sytxlabs.tsautocraft.client.AutocraftingTerminalScreen;
+import eu.sytxlabs.tsautocraft.client.CraftingEmitterScreen;
 import eu.sytxlabs.tsautocraft.client.IOScreen;
 import eu.sytxlabs.tsautocraft.client.PatternProviderScreen;
 import eu.sytxlabs.tsautocraft.client.PatternTerminalScreen;
 import eu.sytxlabs.tsautocraft.client.RequesterScreen;
+import eu.sytxlabs.tsautocraft.pattern.PatternItem;
 
 public class TsAutocraftClient implements ClientModInitializer {
 
@@ -34,15 +36,11 @@ public class TsAutocraftClient implements ClientModInitializer {
 		MenuScreens.register(ModContent.PATTERN_TERMINAL_MENU, PatternTerminalScreen::new);
 		MenuScreens.register(ModContent.AUTOCRAFTING_TERMINAL_MENU, AutocraftingTerminalScreen::new);
 		MenuScreens.register(ModContent.REQUESTER_MENU, RequesterScreen::new);
+		MenuScreens.register(ModContent.CRAFTING_EMITTER_MENU, CraftingEmitterScreen::new);
+		PatternItem.shiftDown = () -> Minecraft.getInstance().hasShiftDown();
 
-		registerFramedModels();
-	}
-
-	/** Same setup Tom's Storage uses for its framed blocks: wrap the model and forward the paint's tint. */
-	private static void registerFramedModels() {
 		ModelLoadingPlugin.register(new ModelLoadingPlugin() {
 			private final Set<BlockState> states = new HashSet<>();
-
 			@Override
 			public void initialize(Context ctx) {
 				for (Block b : ModContent.FRAMED_BLOCKS) states.addAll(b.getStateDefinition().getPossibleStates());
@@ -52,14 +50,12 @@ public class TsAutocraftClient implements ClientModInitializer {
 				});
 			}
 		});
-
 		BlockColorRegistry.register((state, level, pos, tintValues) -> {
 			BlockEntity tile = level.getBlockEntity(pos);
 			if (!(tile instanceof PaintedBlockEntity be)) return;
 			BlockState paint = be.getPaintedBlockState();
 			if (paint == null || paint == Blocks.AIR.defaultBlockState()) return;
-			List<BlockTintSource> sources = Minecraft.getInstance().getBlockColors().getTintSources(paint);
-			for (BlockTintSource source : sources) tintValues.add(source.colorInWorld(paint, level, pos));
+			for (BlockTintSource source : Minecraft.getInstance().getBlockColors().getTintSources(paint)) tintValues.add(source.colorInWorld(paint, level, pos));
 		}, ModContent.FRAMED_BLOCKS.toArray(Block[]::new));
 	}
 }

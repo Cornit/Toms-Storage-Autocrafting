@@ -3,6 +3,8 @@ package eu.sytxlabs.tsautocraft.client;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -12,8 +14,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.ValueInput;
-
-import com.mojang.blaze3d.platform.InputConstants;
 
 import com.tom.storagemod.util.IDataReceiver;
 
@@ -40,7 +40,8 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 	private final ItemStack item;
 	private final long initialAmount;
 	private EditBox amountBox;
-	private Button calcBtn, startBtn, backBtn;
+	private Button calcBtn, startBtn, backBtn, maxBtn;
+	private long maxPossible = -1;
 	private Component message = Component.empty();
 	private final List<Missing> missing = new ArrayList<>();
 	private final List<PlanEntry> materials = new ArrayList<>();
@@ -74,19 +75,16 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		addAmountButton("+1", 1, 72);
 		addAmountButton("+16", 16, 96);
 		addAmountButton("+64", 64, 124);
-		calcBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.calculate"), b -> calculate())
-				.bounds(left + 8, top + H - 24, 104, 18).build());
-		startBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.start"), b -> start())
-				.bounds(left + 8, top + H - 24, 104, 18).build());
-		backBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.back"), b -> back())
-				.bounds(left + W - 112, top + H - 24, 104, 18).build());
+		calcBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.calculate"), _ -> calculate()).bounds(left + 8, top + H - 24, 104, 18).build());
+		startBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.start"), _ -> start()).bounds(left + 8, top + H - 24, 104, 18).build());
+		maxBtn = addRenderableWidget(Button.builder(maxLabel(), _ -> craftPossible()).bounds(left + 8, top + H - 24, 104, 18).build());
+		backBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.back"), _ -> back()).bounds(left + W - 112, top + H - 24, 104, 18).build());
 		updateWidgets();
 		if (!preview) setInitialFocus(amountBox);
 	}
 
 	private void addAmountButton(String label, int n, int x) {
-		Button b = addRenderableWidget(Button.builder(Component.literal(label), btn -> addAmount(n)).bounds(left + x, top + 42, 26, 16).build());
-		amountButtons.add(b);
+		amountButtons.add(addRenderableWidget(Button.builder(Component.literal(label), _ -> addAmount(n)).bounds(left + x, top + 42, 26, 16).build()));
 	}
 
 	private final List<Button> amountButtons = new ArrayList<>();
@@ -95,29 +93,45 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		amountBox.setVisible(!preview);
 		amountButtons.forEach(b -> b.visible = !preview);
 		calcBtn.visible = !preview;
-		startBtn.visible = preview;
+		boolean offerMax = preview && !planOk && maxPossible > 0;
+		startBtn.visible = preview && !offerMax;
 		startBtn.active = planOk;
+		maxBtn.visible = offerMax;
+		maxBtn.setMessage(maxLabel());
+		maxBtn.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("tooltip.tsautocraft.craft_possible")));
 		backBtn.setMessage(Component.translatable(preview ? "button.tsautocraft.back" : "gui.cancel"));
 	}
 
 	private void addAmount(int n) {
 		long v = parseAmount() + n;
-		if (parseAmount() == 1 && n > 1) v = n; // from 1 jump straight to 16/64
+		if (parseAmount() == 1 && n > 1) v = n;
 		amountBox.setValue(Long.toString(Math.min(v, AutocraftingTerminalBlockEntity.maxRequest())));
 	}
 
 	private long parseAmount() {
 		try {
-			return Math.max(1, Math.min(Long.parseLong(amountBox.getValue()), AutocraftingTerminalBlockEntity.maxRequest()));
+			return Math.clamp(Long.parseLong(amountBox.getValue()), 1, AutocraftingTerminalBlockEntity.maxRequest());
 		} catch (NumberFormatException e) {
 			return 1;
 		}
+	}
+
+	private Component maxLabel() {
+		return Component.translatable("button.tsautocraft.craft_possible", AutocraftingTerminalScreen.shortNumber(Math.max(0, maxPossible)));
+	}
+
+	/** Plans again with the largest possible amount; the player then starts it as usual. */
+	private void craftPossible() {
+		if (maxPossible <= 0) return;
+		amountBox.setValue(Long.toString(maxPossible));
+		calculate();
 	}
 
 	private void calculate() {
 		previewAmount = parseAmount();
 		message = Component.empty();
 		missing.clear();
+		if (minecraft.player == null) return;
 		MenuUtil.sendToServer(minecraft.player, out -> {
 			out.store("tsac_plan", ItemStack.CODEC, item);
 			out.putLong("tsac_amt", previewAmount);
@@ -126,6 +140,7 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 
 	private void start() {
 		if (!planOk) return;
+		if (minecraft.player == null) return;
 		MenuUtil.sendToServer(minecraft.player, out -> {
 			out.store("tsac_req", ItemStack.CODEC, item);
 			out.putLong("tsac_amt", previewAmount);
@@ -149,21 +164,22 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 			materials.clear();
 			in.listOrEmpty("tsac_mat", PlanEntry.CODEC).stream().forEach(materials::add);
 			planOk = in.getBooleanOr("tsac_ok", false);
+			maxPossible = in.getLongOr("tsac_max", -1);
 			preview = true;
 			scroll = 0;
-			message = planOk ? Component.empty() : Component.translatable("msg.tsautocraft.request.missing");
+			message = planOk ? Component.empty() : maxPossible > 0 ? Component.translatable("msg.tsautocraft.request.missing_possible", maxPossible) : Component.translatable("msg.tsautocraft.request.missing");
 			updateWidgets();
 			return;
 		}
 		var res = in.getString("tsac_res");
 		if (res.isEmpty()) {
-			// Tom's terminal sync / Autocrafting Terminal data: forward so the screen underneath stays up to date
 			if (parent instanceof IDataReceiver r) r.receive(in);
 			return;
 		}
 		missing.clear();
 		in.listOrEmpty("missing", Missing.CODEC).stream().forEach(missing::add);
 		if (missing.isEmpty() && res.get().equals("msg.tsautocraft.request.started")) {
+			if (minecraft.player == null) return;
 			minecraft.player.sendOverlayMessage(Component.translatable(res.get()));
 			onClose();
 			return;
@@ -207,7 +223,6 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 	@Override
 	public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float a) {
 		super.extractBackground(g, mouseX, mouseY, a);
-		// Panel in the vanilla container style
 		g.fill(left, top, left + W, top + H, 0xFF000000);
 		g.fill(left + 1, top + 1, left + W - 1, top + H - 1, 0xFFC6C6C6);
 		g.fill(left + 1, top + 1, left + W - 2, top + 2, 0xFFFFFFFF);
@@ -238,8 +253,7 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 			x = amountText(g, x, y + 5, e.missing(), "label.tsautocraft.plan.missing", 0xFFFFFFFF);
 			x = amountText(g, x, y + 5, e.crafted(), "label.tsautocraft.plan.crafted", 0xFFC0E0FF);
 			x = amountText(g, x, y + 5, e.stored(), "label.tsautocraft.plan.stored", 0xFFE0E0E0);
-			String n = font.plainSubstrByWidth(e.item().getHoverName().getString(), Math.max(0, x - (x0 + 20) - 4));
-			g.text(font, n, x0 + 20, y + 5, 0xFFFFFFFF, true);
+			g.text(font, font.plainSubstrByWidth(e.item().getHoverName().getString(), Math.max(0, x - (x0 + 20) - 4)), x0 + 20, y + 5, 0xFFFFFFFF, true);
 			if (mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + ROW_H) hovered = e.item();
 		}
 		if (materials.size() > ROWS) {

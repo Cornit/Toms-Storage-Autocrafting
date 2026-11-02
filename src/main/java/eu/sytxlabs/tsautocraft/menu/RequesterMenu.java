@@ -118,7 +118,7 @@ public class RequesterMenu extends AbstractFilteredMenu {
 	public ItemStack quickMoveStack(Player player, int index) {
 		if (index < RequesterBlockEntity.ENTRIES) return ItemStack.EMPTY;
 		Slot from = slots.get(index);
-		if (from == null || !from.hasItem()) return ItemStack.EMPTY;
+		if (!from.hasItem()) return ItemStack.EMPTY;
 		ItemStack proto = from.getItem().copyWithCount(1);
 		for (int i = 0; i < RequesterBlockEntity.ENTRIES; i++) {
 			if (ItemStack.isSameItemSameComponents(slots.get(i).getItem(), proto)) return ItemStack.EMPTY;

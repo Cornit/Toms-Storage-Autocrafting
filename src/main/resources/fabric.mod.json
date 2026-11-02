@@ -11,7 +11,9 @@
   "contact": {
     "homepage": "https://sytxlabs.eu",
     "sources": "https://github.com/SytxLabs/Toms-Storage-Autocrafting",
-    "issues": "https://github.com/SytxLabs/Toms-Storage-Autocrafting/issues"
+    "issues": "https://github.com/SytxLabs/Toms-Storage-Autocrafting/issues",
+    "modrinth": "https://modrinth.com/mod/toms-storage-autocrafting",
+    "curseforge": "https://www.curseforge.com/minecraft/mc-mods/toms-storage-autocrafting"
   },
 
   "license": "MIT",
@@ -27,6 +29,15 @@
     ],
     "jei_mod_plugin": [
       "eu.sytxlabs.tsautocraft.compat.jei.TsAutocraftJeiPlugin"
+    ],
+    "rei_client": [
+      "eu.sytxlabs.tsautocraft.compat.rei.TsAutocraftReiPlugin"
+    ],
+    "jade": [
+      "eu.sytxlabs.tsautocraft.compat.jade.TsAutocraftJadePlugin"
+    ],
+    "modmenu": [
+      "eu.sytxlabs.tsautocraft.compat.modmenu.TsAutocraftModMenu"
     ]
   },
   "mixins": [
@@ -40,7 +51,9 @@
     "toms_storage": ">=2.12.2"
   },
   "suggests": {
-    "jei": "*"
+    "jei": "*",
+    "roughlyenoughitems": "*",
+    "jade": "*"
   },
   "custom": {
     "modmenu": {

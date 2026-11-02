@@ -14,33 +14,27 @@ import com.google.gson.annotations.SerializedName;
 import net.fabricmc.loader.api.FabricLoader;
 
 /**
- * {@code config/tsautocraft.json}, read once at startup (server side behaviour; restart to apply changes).
- * Missing options are filled with their defaults and written back.
+ * {@code config/tsautocraft.json}, read at startup and written by the config screen (Mod Menu); the values are read live,
+ * so changes in the screen apply right away (in singleplayer; a dedicated server reads the file at startup). Missing options are filled with their defaults and written back.
  */
 public final class TsAutocraftConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static TsAutocraftConfig instance = new TsAutocraftConfig();
 
 	public enum CrafterTrigger {
-		/** The provider only fills the crafter; the player's own redstone circuit makes it craft. */
-		@SerializedName("external") EXTERNAL,
-		/** The provider makes the crafter craft directly (scheduled block tick), no redstone signal. */
-		@SerializedName("direct") DIRECT,
-		/** 2-tick redstone pulse from the provider to the crafter; the provider is then a redstone source. */
-		@SerializedName("redstone") REDSTONE
+		@SerializedName("external") EXTERNAL, // The provider only fills the crafter; the player's own redstone circuit makes it craft.
+		@SerializedName("direct") DIRECT, // The provider makes the crafter craft directly (scheduled block tick), no redstone signal.
+		@SerializedName("redstone") REDSTONE // 2-tick redstone pulse from the provider to the crafter; the provider is then a redstone source.
 	}
-
-	/** How a filled crafter is triggered: "external" (default), "direct" or "redstone". */
 	public CrafterTrigger crafterTrigger = CrafterTrigger.EXTERNAL;
 
 	/**
-	 * false (default): crafter slot settings are never changed. The recipe is moved inside the 3x3 grid so that it only
-	 * uses enabled slots; if it does not fit, the job waits with "crafter slot disabled".
-	 * true: inputs go exactly to the pattern's positions and the crafter re-enables disabled slots it gets items in.
+	 * false (default): crafter slot settings are never changed. The recipe is moved inside the 3x3 grid so that it only uses enabled slots;
+	 * if it does not fit, the job waits with "crafter slot disabled". true: inputs go exactly to the pattern's positions and the crafter re-enables disabled slots it gets items in.
 	 */
 	public boolean enableDisabledCrafterSlots = false;
 
-	// ------------------------------------------------------------------ Pattern Provider / crafter
+	//region Pattern Provider / crafter
 
 	/** Minimum ticks between two deliveries to the same crafter. */
 	public int crafterCooldownTicks = 6;
@@ -48,19 +42,23 @@ public final class TsAutocraftConfig {
 	public int crafterPulseTicks = 2;
 	/** "direct"/"redstone": a crafter still holding foreign items after this many ticks is emptied back into the network. */
 	public int crafterStuckTicks = 20;
+	//endregion
 
-	// ------------------------------------------------------------------ Jobs
+	//region Jobs
 
-	/** Running jobs per Autocrafting Terminal. */
+	/** Running jobs per Autocrafting Terminal (without upgrades). */
 	public int maxJobsPerTerminal = 8;
+	/** Additional jobs per Capacity Upgrade in an Autocrafting Terminal. */
+	public int jobsPerCapacityUpgrade = 8;
 	/** Largest amount one request may ask for. */
 	public int maxRequestAmount = 100_000;
 	/** A waiting job ends after this many seconds without any result coming back. */
 	public int jobResultTimeoutSeconds = 120;
 	/** Without Importer reports: a waiting job ends after this many seconds without the target stock rising. */
 	public int jobIdleSeconds = 20;
+	//endregion
 
-	// ------------------------------------------------------------------ Requester
+	//region Requester
 
 	/** How often (ticks) a Requester checks its stock. */
 	public int requesterCheckTicks = 20;
@@ -68,8 +66,9 @@ public final class TsAutocraftConfig {
 	public int requesterMaxBatch = 1024;
 	/** A Requester job that waits this many seconds for missing ingredients is planned again. */
 	public int requesterReplanSeconds = 10;
+	//endregion
 
-	// ------------------------------------------------------------------ Importer / Exporter / terminals
+	//region Importer / Exporter / terminals
 
 	/** Ticks between two Importer/Exporter operations. */
 	public int ioIntervalTicks = 8;
@@ -77,14 +76,10 @@ public final class TsAutocraftConfig {
 	public int ioItemsPerOperation = 16;
 	/** How often (ticks) Tom's terminals refresh the list of craftable items. */
 	public int craftablesSyncTicks = 20;
+	//endregion
 
 	public static TsAutocraftConfig get() {
 		return instance;
-	}
-
-	/** Pattern Providers are redstone sources only in {@link CrafterTrigger#REDSTONE} mode. */
-	public static boolean providerEmitsRedstone() {
-		return instance.crafterTrigger == CrafterTrigger.REDSTONE;
 	}
 
 	/** Unknown or nonsensical values -> defaults / sane minimums. */
@@ -94,6 +89,7 @@ public final class TsAutocraftConfig {
 		crafterPulseTicks = Math.max(1, crafterPulseTicks);
 		crafterStuckTicks = Math.max(1, crafterStuckTicks);
 		maxJobsPerTerminal = Math.max(1, maxJobsPerTerminal);
+		jobsPerCapacityUpgrade = Math.max(0, jobsPerCapacityUpgrade);
 		maxRequestAmount = Math.max(1, maxRequestAmount);
 		jobResultTimeoutSeconds = Math.max(1, jobResultTimeoutSeconds);
 		jobIdleSeconds = Math.max(1, jobIdleSeconds);
@@ -105,8 +101,31 @@ public final class TsAutocraftConfig {
 		craftablesSyncTicks = Math.max(1, craftablesSyncTicks);
 	}
 
+	/** Defaults (for the config screen's reset buttons). */
+	public static TsAutocraftConfig defaults() {
+		return new TsAutocraftConfig();
+	}
+
+	/** Writes the current values (config screen); most options apply right away, a server restart is not needed. */
+	public static void save() {
+		instance.sanitize();
+		write(file());
+	}
+
+	private static Path file() {
+		return FabricLoader.getInstance().getConfigDir().resolve(TsAutocraft.MODID + ".json");
+	}
+
+	private static void write(Path file) {
+		try (Writer w = Files.newBufferedWriter(file)) {
+			GSON.toJson(instance, w);
+		} catch (IOException e) {
+			TsAutocraft.LOGGER.error("Could not write {}", file, e);
+		}
+	}
+
 	public static void load() {
-		Path file = FabricLoader.getInstance().getConfigDir().resolve(TsAutocraft.MODID + ".json");
+		Path file = file();
 		TsAutocraftConfig cfg = null;
 		if (Files.exists(file)) {
 			try (Reader r = Files.newBufferedReader(file)) {
@@ -117,10 +136,6 @@ public final class TsAutocraftConfig {
 		}
 		instance = cfg != null ? cfg : new TsAutocraftConfig();
 		instance.sanitize();
-		try (Writer w = Files.newBufferedWriter(file)) {
-			GSON.toJson(instance, w);
-		} catch (IOException e) {
-			TsAutocraft.LOGGER.error("Could not write {}", file, e);
-		}
+		write(file);
 	}
 }

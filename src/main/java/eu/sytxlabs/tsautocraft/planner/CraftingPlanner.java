@@ -54,18 +54,14 @@ public final class CraftingPlanner<K, P> {
 	 * @param inputsOf    inputs of a pattern per single crafting operation
 	 * @param outputsOf   outputs of a pattern per single crafting operation
 	 */
-	public CraftingPlanner(ToLongFunction<K> stock, Function<K, List<P>> patternsFor,
-			Function<P, Map<K, Long>> inputsOf, Function<P, Map<K, Long>> outputsOf) {
+	public CraftingPlanner(ToLongFunction<K> stock, Function<K, List<P>> patternsFor, Function<P, Map<K, Long>> inputsOf, Function<P, Map<K, Long>> outputsOf) {
 		this.stock = stock;
 		this.patternsFor = patternsFor;
 		this.inputsOf = inputsOf;
 		this.outputsOf = outputsOf;
 	}
 
-	/**
-	 * @param useStockForTarget true = existing stock of the target counts (requester),
-	 *                          false = craft exactly {@code amount} new items (terminal request)
-	 */
+	/** @param useStockForTarget true = existing stock of the target counts (requester), false = craft exactly {@code amount} new items (terminal request) */
 	public Result<K, P> plan(K target, long amount, boolean useStockForTarget) {
 		virtual = new HashMap<>();
 		fromStock = new HashMap<>();
@@ -80,8 +76,7 @@ public final class CraftingPlanner<K, P> {
 
 		List<Step<P>> list = new ArrayList<>(steps.size());
 		steps.forEach((p, c) -> list.add(new Step<>(p, c)));
-		return new Result<>(Collections.unmodifiableList(list), Collections.unmodifiableMap(missing),
-				Collections.unmodifiableMap(fromStock));
+		return new Result<>(Collections.unmodifiableList(list), Collections.unmodifiableMap(missing), Collections.unmodifiableMap(fromStock));
 	}
 
 	private long available(K k) {
@@ -107,13 +102,10 @@ public final class CraftingPlanner<K, P> {
 			missing.merge(k, amount, Long::sum);
 			return;
 		}
-
 		if (candidates.size() == 1) {
-			applyPattern(k, amount, candidates.get(0), depth);
+			applyPattern(k, amount, candidates.getFirst(), depth);
 			return;
 		}
-
-		// Several patterns: take the first one that adds no missing items.
 		for (P p : candidates) {
 			Snapshot s = snapshot();
 			int missingBefore = missing.size();
@@ -122,7 +114,7 @@ public final class CraftingPlanner<K, P> {
 			if (missing.size() == missingBefore && sum(missing) == missingSumBefore) return;
 			restore(s);
 		}
-		applyPattern(k, amount, candidates.get(0), depth);
+		applyPattern(k, amount, candidates.getFirst(), depth);
 	}
 
 	private void applyPattern(K k, long amount, P p, int depth) {
@@ -136,16 +128,12 @@ public final class CraftingPlanner<K, P> {
 			missing.merge(k, amount, Long::sum);
 			return;
 		}
-
 		inProgress.add(k);
 		for (Map.Entry<K, Long> in : inputsOf.apply(p).entrySet()) {
 			need(in.getKey(), Math.multiplyExact(in.getValue(), crafts), depth + 1);
 		}
 		inProgress.remove(k);
-
 		steps.merge(p, crafts, Long::sum);
-
-		// Outputs go into virtual storage, the requested item minus the need
 		for (Map.Entry<K, Long> out : outputsOf.apply(p).entrySet()) {
 			long produced = Math.multiplyExact(out.getValue(), crafts);
 			if (out.getKey().equals(k)) produced -= amount;

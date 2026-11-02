@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "ITI",
+    "PBP",
+    "IRI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "T": "minecraft:crafting_table",
+    "R": "minecraft:redstone",
+    "P": "minecraft:paper",
+    "B": "tsautocraft:blank_pattern"
+  },
+  "result": {
+    "id": "tsautocraft:crafting_upgrade",
+    "count": 1
+  }
+}

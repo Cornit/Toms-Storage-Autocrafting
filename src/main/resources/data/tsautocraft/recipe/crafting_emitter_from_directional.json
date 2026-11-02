@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "redstone",
+  "ingredients": [
+    "tsautocraft:crafting_emitter_directional"
+  ],
+  "result": {
+    "id": "tsautocraft:crafting_emitter"
+  }
+}

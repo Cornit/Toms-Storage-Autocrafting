@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "tsautocraft:block/crafting_emitter"
+  }
+}

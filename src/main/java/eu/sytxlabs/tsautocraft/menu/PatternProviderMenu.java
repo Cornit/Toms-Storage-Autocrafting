@@ -1,6 +1,9 @@
 package eu.sytxlabs.tsautocraft.menu;
 
+import java.util.List;
+
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -14,15 +17,26 @@ import net.minecraft.world.level.storage.ValueInput;
 import com.tom.storagemod.util.IDataReceiver;
 
 import eu.sytxlabs.tsautocraft.ModContent;
+import eu.sytxlabs.tsautocraft.api.PatternMode;
+import eu.sytxlabs.tsautocraft.api.PatternModes;
+import eu.sytxlabs.tsautocraft.api.Upgrades;
 import eu.sytxlabs.tsautocraft.blockentity.PatternProviderBlockEntity;
 import eu.sytxlabs.tsautocraft.pattern.PatternEncoder;
 import eu.sytxlabs.tsautocraft.pattern.PatternItem;
+import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
 
-/** 9 pattern slots in dispenser layout + toggle for blocking mode (button id 0). */
+/**
+ * Up to 4 rows of 9 pattern slots (rows 2-4 unlocked by Capacity Upgrades), 4 upgrade slots on the right, toggles for blocking mode (button id 0) and substitutes (button id 1).
+ * Slot order: 0-35 patterns, 36-71 player inventory, 72-75 upgrades.
+ */
 public class PatternProviderMenu extends AbstractContainerMenu implements IDataReceiver {
+	public static final int WIDTH = 176, HEIGHT = 207, GRID_Y = 18, PLAYER_Y = 125;
+	public static final int PLAYER = PatternProviderBlockEntity.SLOTS, UPGRADES = PLAYER + 36;
+
 	private final PatternProviderBlockEntity be;
 	private final Inventory inv;
 	private final Container patterns;
+	private final Container upgrades;
 	public boolean blocking = true;
 	public boolean substitutes;
 
@@ -35,23 +49,32 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		this.be = be;
 		this.inv = inv;
 		this.patterns = be != null ? be.getPatternInventory() : new SimpleContainer(PatternProviderBlockEntity.SLOTS);
+		this.upgrades = be != null ? be.getUpgrades() : new UpgradeContainer(PatternProviderBlockEntity.UPGRADE_SLOTS, Upgrades.PATTERN_PROVIDER, null);
 
-		for (int row = 0; row < 3; ++row) {
-			for (int col = 0; col < 3; ++col) {
-				addSlot(new Slot(patterns, col + row * 3, 62 + col * 18, 17 + row * 18) {
-					@Override
-					public boolean mayPlace(ItemStack stack) {
-						return stack.getItem() instanceof PatternItem;
-					}
+		for (int i = 0; i < PatternProviderBlockEntity.SLOTS; i++) {
+			final int slot = i;
+			addSlot(new Slot(patterns, i, 8 + i % 9 * 18, GRID_Y + i / 9 * 18) {
+				@Override
+				public boolean mayPlace(ItemStack stack) {
+					return stack.getItem() instanceof PatternItem;
+				}
 
-					@Override
-					public int getMaxStackSize() {
-						return 1;
-					}
-				});
-			}
+				@Override
+				public int getMaxStackSize() {
+					return 1;
+				}
+
+				// Rows without a Capacity Upgrade are hidden
+				@Override
+				public boolean isActive() {
+					return slot < activeSlots();
+				}
+			});
 		}
-		MenuUtil.addPlayerSlots(this::addSlot, inv, 8, 84);
+		MenuUtil.addPlayerSlots(this::addSlot, inv, 8, PLAYER_Y);
+		for (int i = 0; i < PatternProviderBlockEntity.UPGRADE_SLOTS; i++) {
+			addSlot(new UpgradeSlot(upgrades, i, WIDTH, this::mayRemoveUpgrade));
+		}
 
 		addDataSlot(new DataSlot() {
 			@Override
@@ -77,6 +100,19 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		});
 	}
 
+	/** Pattern slots usable with the installed Capacity Upgrades. */
+	public int activeSlots() {
+		return PatternProviderBlockEntity.activeSlots(upgrades);
+	}
+
+	/** Capacity Upgrades can only be removed while the rows they unlock (the last ones, one per upgrade in the slot) are empty. */
+	private boolean mayRemoveUpgrade(ItemStack upgrade) {
+		if (!upgrade.is(ModContent.CAPACITY_UPGRADE)) return true;
+		int active = activeSlots();
+		for (int i = Math.max(PatternProviderBlockEntity.ROW, active - PatternProviderBlockEntity.ROW * upgrade.getCount()); i < active; i++) if (!patterns.getItem(i).isEmpty()) return false;
+		return true;
+	}
+
 	/** 0 = blocking mode, 1 = substitutes for JEI-encoded patterns. */
 	@Override
 	public boolean clickMenuButton(Player player, int id) {
@@ -87,7 +123,7 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		return true;
 	}
 
-	/** Server: JEI "+" ({@code jei}, same data as the Pattern Terminal transfer) encodes the recipe straight into a free slot. */
+	/** Server: JEI/REI "+" ({@code jei}, same data as the Pattern Terminal transfer) encodes the recipe straight into a free slot. */
 	@Override
 	public void receive(ValueInput in) {
 		if (be == null || !in.getBooleanOr("jei", false) || inv.player.isSpectator()) return;
@@ -101,10 +137,8 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		if (slot < 0) return "msg.tsautocraft.jei.provider_full";
 		int blank = player.hasInfiniteMaterials() ? -2 : blankPatternSlot(player.getInventory());
 		if (blank == -1) return "msg.tsautocraft.encode.no_blank";
-		var r = PatternEncoder.encode(player.level(), in.getBooleanOr("jei_craft", true),
-				in.listOrEmpty("jei_in", ItemStack.OPTIONAL_CODEC).stream().toList(),
-				in.listOrEmpty("jei_out", ItemStack.OPTIONAL_CODEC).stream().toList(),
-				be.isSubstitutes());
+		PatternMode mode = transferMode(in);
+		var r = PatternEncoder.encode(player.level(), mode, mode.transferInputs(player.level(), in.listOrEmpty("jei_in", ItemStack.OPTIONAL_CODEC).stream().toList()), in.listOrEmpty("jei_out", ItemStack.OPTIONAL_CODEC).stream().toList(), be.isSubstitutes());
 		if (r.error() != null) return r.error();
 		if (blank >= 0) player.getInventory().removeItem(blank, 1);
 		patterns.setItem(slot, r.toItem());
@@ -112,13 +146,15 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		return null;
 	}
 
-	/** First empty pattern slot, -1 if all are used. */
+	public static PatternMode transferMode(ValueInput in) {
+		return in.getString("jei_mode").map(Identifier::tryParse).map(PatternModes::get).orElse(PatternModes.CRAFTING);
+	}
+
 	public int freePatternSlot() {
-		for (int i = 0; i < PatternProviderBlockEntity.SLOTS; i++) if (patterns.getItem(i).isEmpty()) return i;
+		for (int i = 0; i < activeSlots(); i++) if (patterns.getItem(i).isEmpty()) return i;
 		return -1;
 	}
 
-	/** Inventory slot holding a Blank Pattern, -1 if there is none. */
 	public static int blankPatternSlot(Inventory inv) {
 		for (int i = 0; i < inv.getContainerSize(); i++) if (inv.getItem(i).is(ModContent.BLANK_PATTERN)) return i;
 		return -1;
@@ -132,14 +168,15 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 	@Override
 	public ItemStack quickMoveStack(Player player, int index) {
 		Slot slot = slots.get(index);
-		if (slot == null || !slot.hasItem()) return ItemStack.EMPTY;
+		if (!slot.hasItem() || !slot.mayPickup(player)) return ItemStack.EMPTY;
 		ItemStack stack = slot.getItem();
 		ItemStack copy = stack.copy();
-		int n = PatternProviderBlockEntity.SLOTS;
-		if (index < n) {
-			if (!moveItemStackTo(stack, n, slots.size(), true)) return ItemStack.EMPTY;
+		if (index < PLAYER || index >= UPGRADES) {
+			if (!moveItemStackTo(stack, PLAYER, UPGRADES, true)) return ItemStack.EMPTY;
 		} else if (stack.getItem() instanceof PatternItem) {
-			if (!moveItemStackTo(stack, 0, n, false)) return ItemStack.EMPTY;
+			if (!moveItemStackTo(stack, 0, activeSlots(), false)) return ItemStack.EMPTY;
+		} else if (upgrades.canPlaceItem(0, stack)) {
+			if (!moveItemStackTo(stack, UPGRADES, slots.size(), false)) return ItemStack.EMPTY;
 		} else {
 			return ItemStack.EMPTY;
 		}

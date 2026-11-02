@@ -37,8 +37,7 @@ public class RequesterScreen extends TSContainerScreen<RequesterMenu> implements
 		super.init();
 		for (int i = 0; i < boxes.length; i++) {
 			final int row = i;
-			EditBox b = new EditBox(font, leftPos + 28, topPos + RequesterMenu.ROW_Y + i * RequesterMenu.ROW_H + 1, 48, 14,
-					Component.translatable("label.tsautocraft.amount"));
+			EditBox b = new EditBox(font, leftPos + 28, topPos + RequesterMenu.ROW_Y + i * RequesterMenu.ROW_H + 1, 48, 14, Component.translatable("label.tsautocraft.amount"));
 			b.setMaxLength(7);
 			b.setValue(Integer.toString(menu.amounts[i]));
 			b.setResponder(s -> {
@@ -47,7 +46,7 @@ public class RequesterScreen extends TSContainerScreen<RequesterMenu> implements
 					b.setValue(digits); // EditBox has no input filter in 26.x; this re-enters with clean text
 					return;
 				}
-				if (updating) return;
+				if (updating || minecraft.player == null) return;
 				int v;
 				try {
 					v = s.isEmpty() ? 0 : Integer.parseInt(s);
@@ -108,8 +107,7 @@ public class RequesterScreen extends TSContainerScreen<RequesterMenu> implements
 		return switch (st) {
 		case RequesterBlockEntity.ST_STOCKED -> Component.translatable("status.tsautocraft.requester.stocked");
 		case RequesterBlockEntity.ST_CRAFTING -> Component.translatable("status.tsautocraft.requester.crafting");
-		case RequesterBlockEntity.ST_MISSING -> item.isEmpty() ? Component.translatable("status.tsautocraft.requester.missing_any")
-				: Component.translatable("status.tsautocraft.requester.missing", item.getHoverName());
+		case RequesterBlockEntity.ST_MISSING -> item.isEmpty() ? Component.translatable("status.tsautocraft.requester.missing_any") : Component.translatable("status.tsautocraft.requester.missing", item.getHoverName());
 		case RequesterBlockEntity.ST_NO_PATTERN -> Component.translatable("status.tsautocraft.requester.no_pattern");
 		case RequesterBlockEntity.ST_NO_NETWORK -> Component.translatable("status.tsautocraft.requester.no_network");
 		default -> Component.empty();
@@ -118,9 +116,9 @@ public class RequesterScreen extends TSContainerScreen<RequesterMenu> implements
 
 	private static int statusColor(int st) {
 		return switch (st) {
-		case RequesterBlockEntity.ST_STOCKED -> 0xFF006400;
-		case RequesterBlockEntity.ST_CRAFTING -> 0xFF1E3A8A;
-		default -> 0xFF8B0000;
+			case RequesterBlockEntity.ST_STOCKED -> 0xFF006400;
+			case RequesterBlockEntity.ST_CRAFTING -> 0xFF1E3A8A;
+			default -> 0xFF8B0000;
 		};
 	}
 

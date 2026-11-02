@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "tsautocraft:block/crafting_emitter"
+    },
+    "powered=true": {
+      "model": "tsautocraft:block/crafting_emitter_on"
+    }
+  }
+}

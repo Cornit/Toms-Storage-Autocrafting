@@ -2,7 +2,6 @@ package eu.sytxlabs.tsautocraft.util;
 
 import net.minecraft.world.item.ItemStack;
 
-/** Item + components as a map key (count is ignored). */
 public final class ItemKey {
 	private final ItemStack stack;
 	private final int hash;

@@ -3,9 +3,14 @@ package eu.sytxlabs.tsautocraft.blockentity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponentGetter;
+import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.Containers;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -21,100 +26,171 @@ import com.tom.storagemod.util.TickerUtil.TickableServer;
 
 import eu.sytxlabs.tsautocraft.ModContent;
 import eu.sytxlabs.tsautocraft.TsAutocraftConfig;
+import eu.sytxlabs.tsautocraft.api.JobOwner;
+import eu.sytxlabs.tsautocraft.api.Upgrades;
 import eu.sytxlabs.tsautocraft.job.CraftingJob;
+import eu.sytxlabs.tsautocraft.job.JobRunner;
+import eu.sytxlabs.tsautocraft.job.JobScheduler;
+import eu.sytxlabs.tsautocraft.job.JobText;
+import eu.sytxlabs.tsautocraft.job.Reservations;
 import eu.sytxlabs.tsautocraft.menu.AutocraftingTerminalMenu;
+import eu.sytxlabs.tsautocraft.menu.CraftRequestProtocol;
 import eu.sytxlabs.tsautocraft.network.NetworkLink;
 import eu.sytxlabs.tsautocraft.network.TerminalCrafting;
+import eu.sytxlabs.tsautocraft.util.CustomName;
 import eu.sytxlabs.tsautocraft.util.ItemKey;
 import eu.sytxlabs.tsautocraft.util.StorageUtil;
+import eu.sytxlabs.tsautocraft.util.TerminalAccess;
+import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
 
-/** Autocrafting Terminal: lists craftable items, accepts requests and runs the jobs. */
-public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity implements TickableServer, MenuProvider {
+/**
+ * Autocrafting Terminal: lists craftable items, accepts requests and runs the jobs.
+ * Capacity Upgrades raise the number of parallel jobs (config {@code jobsPerCapacityUpgrade} each).
+ */
+public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity implements TickableServer, MenuProvider, JobOwner, Upgrades.UpgradeHost, StatusInfo, CraftRequestProtocol.Target {
+	private final CustomName customName = new CustomName();
+	public static final int UPGRADE_SLOTS = 3;
+
 	/** Largest amount per request (config {@code maxRequestAmount}). */
 	public static long maxRequest() {
 		return TsAutocraftConfig.get().maxRequestAmount;
 	}
-	private static final int JOB_INTERVAL = 2;
 
 	private final NetworkLink network = new NetworkLink();
+	private final JobRunner runner = new JobRunner();
 	private final List<CraftingJob> jobs = new ArrayList<>();
+	private final UpgradeContainer upgrades = new UpgradeContainer(UPGRADE_SLOTS, Upgrades.AUTOCRAFTING_TERMINAL, this::setChanged);
 	private int nextId = 1;
 
 	public AutocraftingTerminalBlockEntity(BlockPos pos, BlockState state) {
 		super(ModContent.AUTOCRAFTING_TERMINAL_BE, pos, state);
 	}
 
-	@Override
-	public void updateServer() {
-		if (level.getGameTime() % JOB_INTERVAL != 0 || jobs.isEmpty()) return;
-		IInventoryAccess net = network.access(level, worldPosition);
-		var providers = network.providers(level, worldPosition);
-		boolean changed = false;
-		for (int i = jobs.size() - 1; i >= 0; i--) {
-			CraftingJob j = jobs.get(i);
-			if (!j.isFinished()) {
-				long before = j.doneCrafts();
-				CraftingJob.State st = j.state();
-				j.tick(level, net, providers, JOB_INTERVAL);
-				if (before != j.doneCrafts() || st != j.state()) changed = true;
-			}
-			// Done or cancelled: off the list right away (the player got the result in storage)
-			if (j.isFinished()) {
-				jobs.remove(i);
-				changed = true;
-			}
-		}
-		if (changed) setChanged();
+	public UpgradeContainer getUpgrades() {
+		return upgrades;
 	}
 
-	/** Plans and starts a job. Returns missing amounts (empty = started). */
+	@Override
+	public Identifier upgradeHost() {
+		return Upgrades.AUTOCRAFTING_TERMINAL;
+	}
+
+	@Override
+	public int upgradeCount(net.minecraft.world.item.Item item) {
+		return upgrades.count(item);
+	}
+
+	public int maxJobs() {
+		TsAutocraftConfig cfg = TsAutocraftConfig.get();
+		return cfg.maxJobsPerTerminal + upgrades.count(ModContent.CAPACITY_UPGRADE) * cfg.jobsPerCapacityUpgrade;
+	}
+
+	@Override
+	public void updateServer() {
+		if (level == null) return;
+		if (jobs.removeIf(CraftingJob::isFinished)) setChanged();
+		if (!jobs.isEmpty() && JobRunner.due(level)) JobScheduler.submit(this);
+	}
+
+	@Override
+	public void tickJob(CraftingJob job) {
+		runner.tick(this, network, job);
+	}
+
+	@Override
+	public void jobsChanged() {
+		setChanged();
+	}
+
+	@Override
 	public RequestResult request(ItemStack item, long amount) {
 		if (item.isEmpty() || amount <= 0) return RequestResult.error("msg.tsautocraft.request.invalid");
-		if (jobs.stream().filter(j -> !j.isFinished()).count() >= TsAutocraftConfig.get().maxJobsPerTerminal) return RequestResult.error("msg.tsautocraft.request.too_many");
+		if (jobs.stream().filter(j -> !j.isFinished()).count() >= maxJobs()) return RequestResult.error("msg.tsautocraft.request.too_many");
 		IInventoryAccess net = network.access(level, worldPosition);
 		if (!network.isConnected(level, worldPosition)) return RequestResult.error("msg.tsautocraft.no_network");
 
-		var outcome = CraftingJob.plan(nextId, level, net, network.providers(level, worldPosition), item, Math.min(amount, maxRequest()));
+		var outcome = CraftingJob.plan(nextId, level, net, network.providers(level, worldPosition), item, Math.min(amount, maxRequest()), TerminalCrafting.reservations(level, worldPosition));
 		if (!outcome.ok()) return new RequestResult(null, outcome.missing());
 		nextId++;
 		jobs.add(outcome.job());
+		JobScheduler.started(this, outcome.job());
 		setChanged();
 		return new RequestResult(null, Map.of());
 	}
 
-	/** Plans without starting: material list for the request preview. */
+	/** Plans without starting: material list for the request preview, plus the largest possible amount if it fails. */
+	@Override
 	public CraftingJob.PlanOutcome preview(ItemStack item, long amount) {
 		IInventoryAccess net = network.access(level, worldPosition);
-		return CraftingJob.plan(0, level, net, network.providers(level, worldPosition), item, Math.min(amount, maxRequest()));
+		var providers = network.providers(level, worldPosition);
+		Reservations res = TerminalCrafting.reservations(level, worldPosition);
+		long a = Math.min(amount, maxRequest());
+		var outcome = CraftingJob.plan(0, level, net, providers, item, a, res);
+		if (outcome.ok()) return outcome;
+		return outcome.withPossible(CraftingJob.maxPossible(level, net, providers, item, a, res));
 	}
 
-	/** Cancels a job of this terminal or of a Requester on the network (by {@link CraftingJob#uid}). */
+	/** Cancels a job of this terminal or of any other job owner on the network (by {@link CraftingJob#uid}). */
 	public void cancel(int uid) {
-		for (CraftingJob j : jobs) if (j.uid == uid) j.cancel();
-		for (RequesterBlockEntity r : requesters()) r.cancelJob(uid);
+		for (JobOwner o : TerminalCrafting.jobOwners(level, worldPosition)) o.cancelJob(uid);
+		cancelJob(uid);
 		setChanged();
 	}
 
-	public List<CraftingJob> getJobs() {
-		return jobs;
+	/** Pauses/resumes a job of any owner on the network. */
+	public void togglePause(int uid) {
+		for (JobOwner o : ownersWithSelf()) {
+			CraftingJob j = o.findJob(uid);
+			if (j != null) {
+				j.setPaused(!j.paused());
+				o.jobsChanged();
+			}
+		}
 	}
 
-	/** Own jobs followed by the running jobs of all Requesters on the same network. */
+	/** Cycles the priority (normal -> high -> low -> normal) of a job of any owner on the network. */
+	public void cyclePriority(int uid) {
+		for (JobOwner o : ownersWithSelf()) {
+			CraftingJob j = o.findJob(uid);
+			if (j != null) {
+				j.setPriority(j.priority() == CraftingJob.PRIORITY_NORMAL ? CraftingJob.PRIORITY_HIGH : j.priority() == CraftingJob.PRIORITY_HIGH ? CraftingJob.PRIORITY_LOW : CraftingJob.PRIORITY_NORMAL);
+				o.jobsChanged();
+			}
+		}
+	}
+
+	private List<JobOwner> ownersWithSelf() {
+		List<JobOwner> l = new ArrayList<>(TerminalCrafting.jobOwners(level, worldPosition));
+		if (!l.contains(this)) l.add(this);
+		return l;
+	}
+
+	@Override
+	public void cancelJob(int uid) {
+		for (CraftingJob j : jobs) if (j.uid == uid) j.cancel();
+	}
+
+	@Override
+	public List<CraftingJob> activeJobs() {
+		List<CraftingJob> out = new ArrayList<>();
+		for (CraftingJob j : jobs) if (!j.isFinished()) out.add(j);
+		return out;
+	}
+
+	@Override
+	public boolean automatic() {
+		return false;
+	}
+
+	/** Own jobs followed by the running jobs of all other job owners (Requesters, Exporters, other terminals). */
 	public List<CraftingJob.JobView> jobViews() {
 		List<CraftingJob.JobView> views = new ArrayList<>();
 		for (CraftingJob j : jobs) views.add(j.view(false));
-		for (RequesterBlockEntity r : requesters()) {
-			for (CraftingJob j : r.activeJobs()) views.add(j.view(true));
+		for (JobOwner o : TerminalCrafting.jobOwners(level, worldPosition)) {
+			if (o == this) continue;
+			for (CraftingJob j : o.activeJobs()) views.add(j.view(o.automatic()));
 		}
 		return views;
-	}
-
-	private List<RequesterBlockEntity> requesters() {
-		List<RequesterBlockEntity> out = new ArrayList<>();
-		for (var be : TerminalCrafting.networkBlockEntities(level, worldPosition)) {
-			if (be instanceof RequesterBlockEntity r) out.add(r);
-		}
-		return out;
 	}
 
 	/** Craftable items. */
@@ -140,17 +216,27 @@ public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity impleme
 	@Override
 	public void saveAdditional(ValueOutput out) {
 		super.saveAdditional(out);
+		customName.save(out);
 		var list = out.list("Jobs", CraftingJob.CODEC);
 		for (CraftingJob j : jobs) if (!j.isFinished()) list.add(j);
 		out.putInt("NextId", nextId);
+		upgrades.save(out, "Upgrades");
 	}
 
 	@Override
 	public void loadAdditional(ValueInput in) {
 		super.loadAdditional(in);
+		customName.load(in);
 		jobs.clear();
 		in.listOrEmpty("Jobs", CraftingJob.CODEC).stream().forEach(jobs::add);
 		nextId = in.getIntOr("NextId", 1);
+		upgrades.load(in, "Upgrades");
+	}
+
+	@Override
+	public void preRemoveSideEffects(BlockPos pos, BlockState state) {
+		if (level == null) return;
+		Containers.dropContents(level, pos, upgrades);
 	}
 
 	@Override
@@ -160,11 +246,38 @@ public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity impleme
 
 	@Override
 	public Component getDisplayName() {
-		return Component.translatable("block.tsautocraft.autocrafting_terminal");
+		return customName.orElse(Component.translatable("block.tsautocraft.autocrafting_terminal"));
 	}
 
 	public boolean stillValid(Player player) {
-		if (level.getBlockEntity(worldPosition) != this) return false;
-		return player.distanceToSqr(worldPosition.getX() + 0.5D, worldPosition.getY() + 0.5D, worldPosition.getZ() + 0.5D) <= 64.0D;
+		return TerminalAccess.stillValid(this, player);
+	}
+
+	//region Anvil name
+
+	public Component customName() {
+		return customName.get();
+	}
+
+	@Override
+	protected void applyImplicitComponents(DataComponentGetter components) {
+		super.applyImplicitComponents(components);
+		customName.apply(components);
+	}
+
+	@Override
+	protected void collectImplicitComponents(DataComponentMap.Builder builder) {
+		super.collectImplicitComponents(builder);
+		customName.collect(builder);
+	}
+	//endregion
+
+	@Override
+	public void appendStatus(Consumer<Component> lines) {
+		List<CraftingJob> active = activeJobs();
+		lines.accept(Component.translatable("jade.tsautocraft.jobs", active.size(), maxJobs()));
+		for (int i = 0; i < active.size() && i < 3; i++) lines.accept(JobText.line(active.get(i).view(false)));
+		if (active.size() > 3) lines.accept(Component.translatable("tooltip.tsautocraft.pattern.more", active.size() - 3));
+		if (!network.isConnected(level, worldPosition)) lines.accept(Component.translatable("reason.tsautocraft.no_network"));
 	}
 }

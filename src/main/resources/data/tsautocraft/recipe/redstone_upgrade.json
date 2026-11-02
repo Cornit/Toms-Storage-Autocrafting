@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "RTR",
+    "PBP",
+    "RTR"
+  ],
+  "key": {
+    "R": "minecraft:redstone",
+    "T": "minecraft:redstone_torch",
+    "P": "minecraft:paper",
+    "B": "tsautocraft:blank_pattern"
+  },
+  "result": {
+    "id": "tsautocraft:redstone_upgrade",
+    "count": 1
+  }
+}

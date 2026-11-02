@@ -2,21 +2,18 @@ package eu.sytxlabs.tsautocraft.blockentity;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.NonNullList;
+import net.minecraft.core.component.DataComponentGetter;
+import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.Containers;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.CraftingInput;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -24,23 +21,28 @@ import net.minecraft.world.level.storage.ValueOutput;
 import com.tom.storagemod.block.entity.StorageTerminalBlockEntity;
 
 import eu.sytxlabs.tsautocraft.ModContent;
+import eu.sytxlabs.tsautocraft.api.PatternMode;
+import eu.sytxlabs.tsautocraft.api.PatternModes;
 import eu.sytxlabs.tsautocraft.menu.PatternTerminalMenu;
+import eu.sytxlabs.tsautocraft.pattern.BuiltinPatternModes;
 import eu.sytxlabs.tsautocraft.pattern.PatternData;
 import eu.sytxlabs.tsautocraft.pattern.PatternEncoder;
 import eu.sytxlabs.tsautocraft.pattern.PatternItem;
+import eu.sytxlabs.tsautocraft.util.CustomName;
 import eu.sytxlabs.tsautocraft.util.GhostContainer;
 
 /**
  * Pattern Terminal: a Tom's Storage terminal (storage view, search, sorting) that also encodes patterns.
  * <ul>
- *   <li>3x3 ghost grid = inputs. In crafting mode every position maps exactly to the crafter slot
- *       the provider will later fill. The result is computed from the recipe automatically.</li>
- *   <li>In processing mode amounts are free (right click +1, click with stack = stack size) and the
- *       3 output slots are set by hand.</li>
+ *   <li>3x3 ghost grid = inputs. In crafting mode every position maps exactly to the crafter slot the provider will later fill. The result is computed from the recipe automatically.</li>
+ *   <li>In processing mode amounts are free (right click +1, click with stack = stack size) and the 3 output slots are set by hand.</li>
+ *   <li>In smelting mode the first grid item is the input, the result comes from the furnace recipe.</li>
+ *   <li>Further modes can be added by other mods ({@link PatternModes}).</li>
  *   <li>"Blank" slot: blank pattern or old pattern to overwrite; "Result" slot: encoded pattern.</li>
  * </ul>
  */
 public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
+	private final CustomName customName = new CustomName();
 	public static final int SLOT_BLANK = 0, SLOT_RESULT = 1;
 
 	private final GhostContainer grid = new GhostContainer(9, this::onGridChanged);
@@ -57,8 +59,7 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 			PatternTerminalBlockEntity.this.setChanged();
 		}
 	};
-	private boolean craftingMode = true;
-	/** Crafting patterns: also accept substitutes (e.g. any planks) - stored per input in the pattern. */
+	private PatternMode mode = PatternModes.CRAFTING;
 	private boolean substitutes;
 	private boolean loading;
 
@@ -78,8 +79,12 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 		return patternSlots;
 	}
 
-	public boolean isCraftingMode() {
-		return craftingMode;
+	public PatternMode getMode() {
+		return mode;
+	}
+
+	public boolean isFixedMode() {
+		return mode.fixedInputs();
 	}
 
 	public boolean isSubstitutes() {
@@ -91,10 +96,13 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 		setChanged();
 	}
 
-	public void setCraftingMode(boolean crafting) {
-		this.craftingMode = crafting;
-		if (crafting) {
-			// Crafting: exactly 1 per slot
+	public void cycleMode() {
+		setMode(PatternModes.next(mode));
+	}
+
+	public void setMode(PatternMode mode) {
+		this.mode = mode;
+		if (isFixedMode()) {
 			for (int i = 0; i < 9; i++) {
 				ItemStack st = grid.getItem(i);
 				if (st.getCount() > 1) grid.setItem(i, st.copyWithCount(1));
@@ -104,10 +112,10 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 	}
 
 	private void onGridChanged() {
-		if (!loading && craftingMode && level != null && !level.isClientSide()) {
-			ItemStack result = findRecipe().map(r -> r.value().assemble(craftInput())).orElse(ItemStack.EMPTY);
+		if (!loading && isFixedMode() && level != null && !level.isClientSide()) {
+			List<ItemStack> result = mode.computeOutputs(level, gridItems());
 			outputs.clearContent();
-			outputs.setItem(0, result);
+			for (int i = 0; i < 3 && i < result.size(); i++) outputs.setItem(i, result.get(i));
 		}
 		setChanged();
 	}
@@ -118,14 +126,6 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 		return l;
 	}
 
-	private CraftingInput craftInput() {
-		return PatternEncoder.craftInput(gridItems());
-	}
-
-	private Optional<RecipeHolder<CraftingRecipe>> findRecipe() {
-		return PatternEncoder.findRecipe(level, gridItems());
-	}
-
 	/** Encodes the current grid. Returns a translation key for an error, or null on success. */
 	public String encode() {
 		ItemStack blank = patternSlots.getItem(SLOT_BLANK);
@@ -134,32 +134,32 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 
 		List<ItemStack> outs = new ArrayList<>(3);
 		for (int i = 0; i < 3; i++) outs.add(outputs.getItem(i));
-		PatternEncoder.Result r = PatternEncoder.encode(level, craftingMode, gridItems(), outs, substitutes);
+		PatternEncoder.Result r = PatternEncoder.encode(level, mode, gridItems(), outs, substitutes);
 		if (r.error() != null) return r.error();
 
 		ItemStack pattern = r.toItem();
+		if (blank.getItem() instanceof PatternItem) pattern.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, blank.get(net.minecraft.core.component.DataComponents.CUSTOM_NAME));
 		blank.shrink(1);
 		patternSlots.setItem(SLOT_BLANK, blank.isEmpty() ? ItemStack.EMPTY : blank);
 		patternSlots.setItem(SLOT_RESULT, pattern);
 		return null;
 	}
 
-	/** Loads a pattern from the "blank" slot into the grid (for editing/copying). */
 	public boolean loadFromPattern() {
 		PatternData d = PatternItem.get(patternSlots.getItem(SLOT_BLANK));
 		if (d == null) d = PatternItem.get(patternSlots.getItem(SLOT_RESULT));
 		if (d == null) return false;
 		loading = true;
 		try {
-			craftingMode = d.crafting();
+			mode = d.modeType();
 			substitutes = d.hasSubstitutes();
 			grid.clearContent();
 			outputs.clearContent();
-			if (d.crafting()) {
+			if (mode.keepsGridPositions()) {
 				for (int i = 0; i < 9 && i < d.inputs().size(); i++) grid.setItem(i, d.inputs().get(i).stack());
 			} else {
 				int i = 0;
-				for (PatternData.Entry e : d.inputs()) if (i < 9) grid.setItem(i++, e.stack());
+				for (PatternData.Entry e : d.inputs()) if (i < 9 && !e.isEmpty()) grid.setItem(i++, e.stack());
 			}
 			int o = 0;
 			for (PatternData.Entry e : d.outputs()) if (o < 3) outputs.setItem(o++, e.stack());
@@ -170,19 +170,21 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 		return true;
 	}
 
-	/** Recipe transfer from JEI: crafting = 9 grid positions, processing = up to 9 inputs and 3 outputs with amounts. */
-	public void applyRecipe(boolean crafting, List<ItemStack> in, List<ItemStack> out) {
+	/** Recipe transfer from JEI/REI: crafting = 9 grid positions, other fixed modes = one per input, processing = up to 9 inputs and 3 outputs with amounts. */
+	public void applyRecipe(PatternMode mode, List<ItemStack> in, List<ItemStack> out) {
+		boolean fixed = mode.fixedInputs();
+		if (!mode.keepsGridPositions()) in = BuiltinPatternModes.compact(in);
 		loading = true;
 		try {
-			craftingMode = crafting;
+			this.mode = mode;
 			grid.clearContent();
 			outputs.clearContent();
 			for (int i = 0; i < 9 && i < in.size(); i++) {
 				ItemStack s = in.get(i);
 				if (s.isEmpty()) continue;
-				grid.setItem(i, s.copyWithCount(crafting ? 1 : Math.clamp(s.getCount(), 1, PatternTerminalMenu.MAX_PROCESSING_COUNT)));
+				grid.setItem(i, s.copyWithCount(fixed ? 1 : Math.clamp(s.getCount(), 1, PatternTerminalMenu.MAX_PROCESSING_COUNT)));
 			}
-			if (!crafting) {
+			if (!fixed) {
 				for (int i = 0; i < 3 && i < out.size(); i++) {
 					ItemStack s = out.get(i);
 					if (!s.isEmpty()) outputs.setItem(i, s.copyWithCount(Math.clamp(s.getCount(), 1, PatternTerminalMenu.MAX_PROCESSING_COUNT)));
@@ -203,26 +205,28 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 	@Override
 	public void saveAdditional(ValueOutput out) {
 		super.saveAdditional(out);
+		customName.save(out);
 		grid.save(out, "Grid");
 		outputs.save(out, "Outputs");
 		var list = out.list("Slots", ItemStack.OPTIONAL_CODEC);
 		list.add(patternSlots.getItem(0));
 		list.add(patternSlots.getItem(1));
-		out.putBoolean("Crafting", craftingMode);
+		out.putString("ModeId", mode.id().toString());
 		out.putBoolean("Substitutes", substitutes);
 	}
 
 	@Override
 	public void loadAdditional(ValueInput in) {
 		super.loadAdditional(in);
+		customName.load(in);
 		loading = true;
 		try {
 			grid.load(in, "Grid");
 			outputs.load(in, "Outputs");
 			List<ItemStack> l = in.listOrEmpty("Slots", ItemStack.OPTIONAL_CODEC).stream().toList();
-			patternSlots.setItem(0, l.size() > 0 ? l.get(0) : ItemStack.EMPTY);
+			patternSlots.setItem(0, !l.isEmpty() ? l.get(0) : ItemStack.EMPTY);
 			patternSlots.setItem(1, l.size() > 1 ? l.get(1) : ItemStack.EMPTY);
-			craftingMode = in.getBooleanOr("Crafting", true);
+			mode = in.getString("ModeId").map(Identifier::tryParse).map(PatternModes::get).orElse(in.getBooleanOr("Crafting", true) ? PatternModes.CRAFTING : PatternModes.PROCESSING);
 			substitutes = in.getBooleanOr("Substitutes", false);
 		} finally {
 			loading = false;
@@ -241,6 +245,26 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 
 	@Override
 	public Component getDisplayName() {
-		return Component.translatable("menu.tsautocraft.pattern_terminal");
+		return customName.orElse(Component.translatable("menu.tsautocraft.pattern_terminal"));
 	}
+
+	//region Anvil name
+
+	/** Anvil name of the placed item, null without one. */
+	public Component customName() {
+		return customName.get();
+	}
+
+	@Override
+	protected void applyImplicitComponents(DataComponentGetter components) {
+		super.applyImplicitComponents(components);
+		customName.apply(components);
+	}
+
+	@Override
+	protected void collectImplicitComponents(DataComponentMap.Builder builder) {
+		super.collectImplicitComponents(builder);
+		customName.collect(builder);
+	}
+	//endregion
 }

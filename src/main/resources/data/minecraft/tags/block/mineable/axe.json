@@ -9,6 +9,9 @@
     "tsautocraft:pattern_provider_connector",
     "tsautocraft:exporter_framed",
     "tsautocraft:importer_framed",
-    "tsautocraft:pattern_provider_connector_framed"
+    "tsautocraft:pattern_provider_connector_framed",
+    "tsautocraft:crafting_emitter",
+    "tsautocraft:crafting_emitter_directional",
+    "tsautocraft:crafting_emitter_directional_framed"
   ]
 }

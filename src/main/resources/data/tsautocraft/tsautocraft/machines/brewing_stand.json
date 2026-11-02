@@ -1,0 +1,4 @@
+{
+  "blocks": ["minecraft:brewing_stand"],
+  "sides": ["north", "up"]
+}

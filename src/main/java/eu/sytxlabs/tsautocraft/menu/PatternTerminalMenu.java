@@ -14,28 +14,28 @@ import com.tom.storagemod.menu.StorageTerminalMenu;
 import com.tom.storagemod.menu.slot.PhantomSlot;
 
 import eu.sytxlabs.tsautocraft.ModContent;
+import eu.sytxlabs.tsautocraft.api.PatternMode;
+import eu.sytxlabs.tsautocraft.api.PatternModes;
 import eu.sytxlabs.tsautocraft.blockentity.PatternTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.pattern.PatternItem;
 import eu.sytxlabs.tsautocraft.util.GhostContainer;
 
 /**
- * Pattern Terminal: Tom's storage terminal (5 storage rows, search, sorting, tall mode) plus the encoding area
- * where the Crafting Terminal has its crafting grid.
+ * Pattern Terminal: Tom's storage terminal (5 storage rows, search, sorting, tall mode) plus the encoding area where the Crafting Terminal has its crafting grid.
  * Slot order: 0-8 grid, 9-11 outputs, 12 blank pattern, 13 result, then player inventory + offhand.
- * Buttons: 0 = toggle mode, 1 = encode, 2 = load pattern, 3 = clear grid, 4 = toggle substitutes.
+ * Buttons: 0 = next mode (crafting, processing, smelting, modes of other mods), 1 = encode, 2 = load pattern, 3 = clear grid, 4 = toggle substitutes.
  */
 public class PatternTerminalMenu extends StorageTerminalMenu {
 	public static final int GRID = 0, OUTPUTS = 9, BLANK = 12, RESULT = 13;
 	public static final int MAX_PROCESSING_COUNT = 999;
-	/** Top of the encoding area relative to the GUI (non-tall mode); the player inventory starts at 174. */
 	public static final int AREA_Y = 94;
 	public static final int GRID_X = 26, OUTPUT_X = 100, PATTERN_X = 130;
 
 	private final PatternTerminalBlockEntity be;
-	public boolean craftingMode = true;
+	/** Client: index of the active mode in {@link PatternModes#all()}. */
+	public int mode;
 	public boolean substitutes;
 
-	/** Ghost slot with counts. Extends PhantomSlot so JEI/REI drag and drop works through Tom's handler. */
 	public static class GhostSlot extends PhantomSlot {
 		public final boolean output;
 
@@ -89,12 +89,12 @@ public class PatternTerminalMenu extends StorageTerminalMenu {
 		addDataSlot(new DataSlot() {
 			@Override
 			public int get() {
-				return be == null || be.isCraftingMode() ? 1 : 0;
+				return be != null ? PatternModes.indexOf(be.getMode()) : 0;
 			}
 
 			@Override
 			public void set(int value) {
-				craftingMode = value != 0;
+				mode = value;
 			}
 		});
 		addDataSlot(new DataSlot() {
@@ -114,8 +114,8 @@ public class PatternTerminalMenu extends StorageTerminalMenu {
 	public void clicked(int slotId, int button, ContainerInput input, Player player) {
 		Slot slot = slotId >= 0 && slotId < slots.size() ? slots.get(slotId) : null;
 		if (slot instanceof GhostSlot g) {
-			boolean crafting = craftingModeServer();
-			if (g.output && crafting) return; // result is computed from the recipe
+			boolean crafting = fixedModeServer();
+			if (g.output && crafting) return;
 			ItemStack carried = getCarried();
 			ItemStack current = slot.getItem();
 			if (!carried.isEmpty()) {
@@ -136,15 +136,23 @@ public class PatternTerminalMenu extends StorageTerminalMenu {
 		super.clicked(slotId, button, input, player);
 	}
 
-	private boolean craftingModeServer() {
-		return be != null ? be.isCraftingMode() : craftingMode;
+	private boolean fixedModeServer() {
+		return be != null ? be.isFixedMode() : modeType().fixedInputs();
+	}
+
+	public PatternMode modeType() {
+		return PatternModes.byIndex(mode);
+	}
+
+	public boolean outputsLocked() {
+		return modeType().fixedInputs();
 	}
 
 	@Override
 	public boolean clickMenuButton(Player player, int id) {
 		if (be == null) return false;
 		switch (id) {
-		case 0 -> be.setCraftingMode(!be.isCraftingMode());
+		case 0 -> be.cycleMode();
 		case 1 -> {
 			String err = be.encode();
 			MenuUtil.sendToClient(player, out -> out.putString("msg", err == null ? "msg.tsautocraft.encode.ok" : err));
@@ -167,12 +175,11 @@ public class PatternTerminalMenu extends StorageTerminalMenu {
 		super.receive(in);
 		if (be == null || pinv.player.isSpectator()) return;
 		if (in.getBooleanOr("jei", false)) {
-			be.applyRecipe(in.getBooleanOr("jei_craft", true),
-					in.listOrEmpty("jei_in", ItemStack.OPTIONAL_CODEC).stream().toList(),
-					in.listOrEmpty("jei_out", ItemStack.OPTIONAL_CODEC).stream().toList());
+			PatternMode mode = PatternProviderMenu.transferMode(in);
+			be.applyRecipe(mode, mode.transferInputs(be.getLevel(), in.listOrEmpty("jei_in", ItemStack.OPTIONAL_CODEC).stream().toList()), in.listOrEmpty("jei_out", ItemStack.OPTIONAL_CODEC).stream().toList());
 		}
 		in.getInt("ghost_slot").ifPresent(idx -> in.read("ghost_item", ItemStack.CODEC).ifPresent(st -> {
-			if (idx >= 0 && idx < slots.size() && slots.get(idx) instanceof GhostSlot g && !(g.output && be.isCraftingMode())) {
+			if (idx >= 0 && idx < slots.size() && slots.get(idx) instanceof GhostSlot g && !(g.output && be.isFixedMode())) {
 				g.set(st.copyWithCount(1));
 			}
 		}));
@@ -183,14 +190,12 @@ public class PatternTerminalMenu extends StorageTerminalMenu {
 		return !(slot instanceof GhostSlot) && super.canTakeItemForPickAll(stack, slot);
 	}
 
-	/** Shift click on one of the menu's own slots (player slots are pushed into the storage by Tom's code). */
 	@Override
 	protected ItemStack shiftClickItems(Player player, int index) {
 		if (index != BLANK && index != RESULT) return ItemStack.EMPTY; // ghost slots
 		Slot slot = slots.get(index);
 		if (!slot.hasItem()) return ItemStack.EMPTY;
 		ItemStack stack = slot.getItem();
-		// Player inventory without the offhand slot (last slot)
 		if (!moveItemStackTo(stack, playerSlotsStart + 1, slots.size() - 1, true)) return ItemStack.EMPTY;
 		if (stack.isEmpty()) slot.setByPlayer(ItemStack.EMPTY);
 		else slot.setChanged();

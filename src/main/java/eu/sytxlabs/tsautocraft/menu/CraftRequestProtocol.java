@@ -9,8 +9,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 
-import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity.RequestResult;
+import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.job.CraftingJob.PlanEntry;
 import eu.sytxlabs.tsautocraft.job.CraftingJob.PlanOutcome;
 import eu.sytxlabs.tsautocraft.menu.AutocraftingTerminalMenu.Missing;
@@ -19,7 +19,7 @@ import eu.sytxlabs.tsautocraft.network.TerminalCrafting;
 /**
  * Server side of {@code CraftRequestScreen} (sent through Tom's data packet to the open menu).
  * <ul>
- *   <li>{@code tsac_plan} + {@code tsac_amt}: plan only, answer {@code tsac_preview}, {@code tsac_ok}, {@code tsac_mat} (material list).</li>
+ *   <li>{@code tsac_plan} + {@code tsac_amt}: plan only, answer {@code tsac_preview}, {@code tsac_ok}, {@code tsac_mat} (material list), {@code tsac_max} (largest amount possible right now, if not ok).</li>
  *   <li>{@code tsac_req} + {@code tsac_amt}: start the job, answer {@code tsac_res} (+ {@code missing}).</li>
  * </ul>
  */
@@ -51,7 +51,7 @@ public final class CraftRequestProtocol {
 	/** @return true if the message was a request message */
 	public static boolean receive(ValueInput in, Player player, Target target) {
 		if (player.isSpectator()) return false;
-		long amount = Math.max(1, Math.min(in.getLongOr("tsac_amt", 1), AutocraftingTerminalBlockEntity.maxRequest()));
+		long amount = Math.clamp(in.getLongOr("tsac_amt", 1), 1, AutocraftingTerminalBlockEntity.maxRequest());
 		var plan = in.read("tsac_plan", ItemStack.CODEC);
 		if (plan.isPresent()) {
 			PlanOutcome o = target.preview(plan.get(), amount);
@@ -62,6 +62,7 @@ public final class CraftRequestProtocol {
 				}
 				out.putBoolean("tsac_preview", true);
 				out.putBoolean("tsac_ok", o.ok());
+				out.putLong("tsac_max", o.possible());
 				var l = out.list("tsac_mat", PlanEntry.CODEC);
 				o.materials().forEach(l::add);
 			});
