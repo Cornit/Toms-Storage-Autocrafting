@@ -144,7 +144,8 @@ away; a dedicated server reads the file at startup.
 ## API (for other mods)
 
 Everything in `eu.sytxlabs.tsautocraft.api` is public API (`TsAutocraftApi.VERSION`); `gradlew build` also produces an
-`-api.jar` to compile against.
+`-api.jar` to compile against. The API jar (and its sources) is only published on the
+[GitHub releases](https://github.com/SytxLabs/Toms-Storage-Autocrafting/releases), not on Modrinth or CurseForge.
 
 * `PatternModes` / `PatternMode`: new pattern kinds (encoding, delivery, JEI/REI recipe matching).
 * `IOModes` / `IOMode`: new Exporter/Importer modes.

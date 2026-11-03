@@ -42,6 +42,11 @@ public class UpgradeSlot extends Slot {
 	}
 
 	@Override
+	public int getMaxStackSize() {
+		return getItem().isEmpty() ? container.getMaxStackSize() : getMaxStackSize(getItem());
+	}
+
+	@Override
 	public boolean mayPickup(Player player) {
 		return mayTake.test(getItem());
 	}

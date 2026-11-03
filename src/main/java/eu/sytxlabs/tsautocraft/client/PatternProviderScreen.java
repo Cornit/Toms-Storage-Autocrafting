@@ -70,6 +70,11 @@ public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu
 	}
 
 	@Override
+	protected boolean hasClickedOutside(double mx, double my, int left, int top) {
+		return super.hasClickedOutside(mx, my, left, top) && !GuiUtil.inUpgradePanel(mx, my, left, top, imageWidth, PatternProviderBlockEntity.UPGRADE_SLOTS);
+	}
+
+	@Override
 	protected void extractLabels(GuiGraphicsExtractor g, int xm, int ym) {
 		super.extractLabels(g, xm, ym);
 		int active = menu.activeSlots();

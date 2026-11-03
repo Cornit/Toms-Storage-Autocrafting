@@ -35,6 +35,12 @@ public final class GuiUtil {
 		for (int i = 0; i < n; i++) slot(g, x + 6, topPos + 5 + i * 18);
 	}
 
+	/** Is (mx, my) on the upgrade panel? Vanilla treats clicks outside the GUI image as "throw the carried stack". */
+	public static boolean inUpgradePanel(double mx, double my, int leftPos, int topPos, int imageWidth, int n) {
+		int x = leftPos + imageWidth - 2;
+		return mx >= x && mx < x + UPGRADE_W + 2 && my >= topPos && my < topPos + 10 + n * 18;
+	}
+
 	/** Exclusion area for JEI/REI. */
 	public static Box upgradeBox(int leftPos, int topPos, int imageWidth, int n) {
 		return new Box(leftPos + imageWidth - 2, topPos, UPGRADE_W + 2, 10 + n * 18);

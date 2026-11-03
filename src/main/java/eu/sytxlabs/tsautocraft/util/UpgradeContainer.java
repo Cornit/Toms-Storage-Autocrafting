@@ -46,6 +46,17 @@ public class UpgradeContainer extends SimpleContainer {
 		return Math.clamp(max - (count(stack.getItem()) - (cur.isEmpty() ? 0 : cur.getCount())), 0, stack.getMaxStackSize());
 	}
 
+	/** Stack limit for code that ignores the slot (inventory mods, transfer APIs): the most any allowed upgrade may stack. */
+	@Override
+	public int getMaxStackSize() {
+		return Math.max(1, allowed().stream().mapToInt(i -> Upgrades.max(host, i)).max().orElse(1));
+	}
+
+	@Override
+	public int getMaxStackSize(ItemStack stack) {
+		return Math.clamp(Upgrades.max(host, stack.getItem()), 1, stack.getMaxStackSize());
+	}
+
 	@Override
 	public void setChanged() {
 		super.setChanged();

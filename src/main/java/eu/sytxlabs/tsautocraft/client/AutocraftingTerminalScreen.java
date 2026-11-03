@@ -176,6 +176,11 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 	}
 
 	@Override
+	protected boolean hasClickedOutside(double mx, double my, int left, int top) {
+		return super.hasClickedOutside(mx, my, left, top) && !GuiUtil.inUpgradePanel(mx, my, left, top, imageWidth, AutocraftingTerminalBlockEntity.UPGRADE_SLOTS);
+	}
+
+	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
 		super.extractRenderState(graphics, mouseX, mouseY, a);
 		int idx = gridIndexAt(mouseX - leftPos, mouseY - topPos);

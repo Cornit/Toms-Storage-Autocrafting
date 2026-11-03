@@ -71,6 +71,11 @@ public class IOScreen extends AbstractFilteredScreen<IOMenu> {
 	}
 
 	@Override
+	protected boolean hasClickedOutside(double mx, double my, int left, int top) {
+		return super.hasClickedOutside(mx, my, left, top) && !GuiUtil.inUpgradePanel(mx, my, left, top, imageWidth, AbstractIOBlockEntity.UPGRADE_SLOTS);
+	}
+
+	@Override
 	public void getExclusionAreas(Consumer<Box> consumer) {
 		consumer.accept(GuiUtil.upgradeBox(leftPos, topPos, imageWidth, AbstractIOBlockEntity.UPGRADE_SLOTS));
 	}
