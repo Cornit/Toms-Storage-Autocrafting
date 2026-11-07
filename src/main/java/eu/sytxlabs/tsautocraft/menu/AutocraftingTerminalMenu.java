@@ -21,12 +21,13 @@ import eu.sytxlabs.tsautocraft.ModContent;
 import eu.sytxlabs.tsautocraft.api.Upgrades;
 import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.job.CraftingJob.JobView;
+import eu.sytxlabs.tsautocraft.job.JobHistoryEntry;
 import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
 
 /**
  * Autocrafting Terminal. No item slots besides the player inventory; the craftable list and the jobs are synced through Tom's data packet (every 10 ticks).
- * <p>Client -> server: preview/request through {@link CraftRequestProtocol}, {@code cancel}, {@code pause}, {@code prio} (job uid).
- * <br>Server -> client: {@code craft} (list), {@code jobs} (list).
+ * <p>Client -> server: preview/request through {@link CraftRequestProtocol}, {@code cancel}, {@code pause}, {@code prio} (job uid), {@code hclear} (clear history).
+ * <br>Server -> client: {@code craft} (list), {@code jobs} (list), {@code hist} (finished jobs, newest first).
  */
 public class AutocraftingTerminalMenu extends AbstractContainerMenu implements IDataReceiver {
 	public static final int PLAYER_Y = 174, WIDTH = 176, UPGRADES = 36;
@@ -47,6 +48,7 @@ public class AutocraftingTerminalMenu extends AbstractContainerMenu implements I
 	// Client state
 	public final List<Craftable> craftables = new ArrayList<>();
 	public final List<JobView> jobs = new ArrayList<>();
+	public final List<JobHistoryEntry> history = new ArrayList<>();
 	public Runnable onUpdate;
 
 	public AutocraftingTerminalMenu(int id, Inventory inv) {
@@ -69,9 +71,11 @@ public class AutocraftingTerminalMenu extends AbstractContainerMenu implements I
 		syncTimer = 10;
 		List<Craftable> list = be.craftables().stream().map(st -> new Craftable(st, be.stockOf(st))).toList();
 		List<JobView> views = be.jobViews();
+		List<JobHistoryEntry> hist = List.copyOf(be.history());
 		MenuUtil.sendToClient(inv.player, out -> {
 			list.forEach(out.list("craft", Craftable.CODEC)::add);
 			views.forEach(out.list("jobs", JobView.CODEC)::add);
+			hist.forEach(out.list("hist", JobHistoryEntry.CODEC)::add);
 		});
 	}
 
@@ -82,11 +86,17 @@ public class AutocraftingTerminalMenu extends AbstractContainerMenu implements I
 			craftables.addAll(in.listOrEmpty("craft", Craftable.CODEC).stream().toList());
 			jobs.clear();
 			jobs.addAll(in.listOrEmpty("jobs", JobView.CODEC).stream().toList());
+			history.clear();
+			history.addAll(in.listOrEmpty("hist", JobHistoryEntry.CODEC).stream().toList());
 			if (onUpdate != null) onUpdate.run();
 			return;
 		}
 		if (inv.player.isSpectator()) return;
 		if (CraftRequestProtocol.receive(in, inv.player, be)) syncTimer = 0;
+		if (in.getBooleanOr("hclear", false)) {
+			be.clearHistory();
+			syncTimer = 0;
+		}
 		Map<String, IntConsumer> jobActions = Map.of("cancel", be::cancel, "pause", be::togglePause, "prio", be::cyclePriority);
 		jobActions.forEach((key, action) -> in.getInt(key).ifPresent(id -> {
 			action.accept(id);

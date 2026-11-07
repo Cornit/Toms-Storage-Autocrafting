@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.transfer.v1.item.ItemStorage;
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
 import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
+import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemStack;
@@ -61,21 +62,27 @@ public final class StorageUtil {
 	 */
 	@SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public static boolean insertAll(List<Storage<ItemVariant>> targets, List<ItemStack> stacks, boolean commit) {
-		if (targets.isEmpty()) return false;
 		try (Transaction t = Transaction.openOuter()) {
-			for (ItemStack st : stacks) {
-				if (st.isEmpty()) continue;
-				long left = st.getCount();
-				ItemVariant v = ItemVariant.of(st);
-				for (Storage<ItemVariant> target : targets) {
-					left -= target.insert(v, left, t);
-					if (left <= 0) break;
-				}
-				if (left > 0) return false;
-			}
+			if (!insertAll(targets, stacks, t)) return false;
 			if (commit) t.commit();
 			return true;
 		}
+	}
+
+	/** Like {@link #insertAll(List, List, boolean)}, inside the caller's transaction (the caller commits). */
+	public static boolean insertAll(List<Storage<ItemVariant>> targets, List<ItemStack> stacks, TransactionContext t) {
+		if (targets.isEmpty()) return false;
+		for (ItemStack st : stacks) {
+			if (st.isEmpty()) continue;
+			long left = st.getCount();
+			ItemVariant v = ItemVariant.of(st);
+			for (Storage<ItemVariant> target : targets) {
+				left -= target.insert(v, left, t);
+				if (left <= 0) break;
+			}
+			if (left > 0) return false;
+		}
+		return true;
 	}
 
 	public static long count(IInventoryAccess access, Level level, ItemKey key) {
@@ -112,28 +119,29 @@ public final class StorageUtil {
 		}
 		if (ok) return pulled;
 
+		// Put everything back first, then report all stacks that did not fit
+		List<ItemStack> leftovers = new ArrayList<>();
 		for (ItemStack p : pulled) {
 			if (!p.isEmpty()) {
 				ItemStack rem = access.pushStack(p);
-				if (!rem.isEmpty()) {
-					throw new LeftoverException(rem);
-				}
+				if (!rem.isEmpty()) leftovers.add(rem);
 			}
 		}
+		if (!leftovers.isEmpty()) throw new LeftoverException(leftovers);
 		return null;
 	}
 
-	/** Thrown when there was no room to put items back. The caller must buffer the stack. */
+	/** Thrown when there was no room to put items back. The caller must buffer the stacks. */
 	public static final class LeftoverException extends RuntimeException {
-		private final transient ItemStack leftover;
+		private final transient List<ItemStack> leftovers;
 
-		public LeftoverException(ItemStack leftover) {
+		public LeftoverException(List<ItemStack> leftovers) {
 			super("leftover", null, false, false);
-			this.leftover = leftover;
+			this.leftovers = leftovers;
 		}
 
-		public ItemStack leftover() {
-			return leftover;
+		public List<ItemStack> leftovers() {
+			return leftovers;
 		}
 	}
 }

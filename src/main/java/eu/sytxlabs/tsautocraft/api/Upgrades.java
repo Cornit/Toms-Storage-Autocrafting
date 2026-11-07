@@ -15,8 +15,8 @@ import eu.sytxlabs.tsautocraft.TsAutocraft;
  * and read the installed amount through {@link UpgradeHost#upgradeCount}; the effect is up to them (e.g. a {@link PatternMode} that delivers faster with it).
  */
 public final class Upgrades {
-	public static final Identifier PATTERN_PROVIDER = TsAutocraft.id("pattern_provider"), AUTOCRAFTING_TERMINAL = TsAutocraft.id("autocrafting_terminal"),
-			EXPORTER = TsAutocraft.id("exporter"), IMPORTER = TsAutocraft.id("importer");
+	public static final Identifier PATTERN_PROVIDER = TsAutocraft.id("pattern_provider"), AUTOCRAFTING_TERMINAL = TsAutocraft.id("autocrafting_terminal"), EXPORTER = TsAutocraft.id("exporter"), IMPORTER = TsAutocraft.id("importer");
+	public static final Identifier LEVEL_MAINTAINER = TsAutocraft.id("level_maintainer");
 
 	private static final Map<Identifier, List<Item>> ALLOWED = new LinkedHashMap<>();
 	private static final Map<Identifier, Map<Item, Integer>> MAX = new LinkedHashMap<>();

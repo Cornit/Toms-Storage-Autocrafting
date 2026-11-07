@@ -30,7 +30,9 @@ import eu.sytxlabs.tsautocraft.api.PatternModes;
 import eu.sytxlabs.tsautocraft.client.AutocraftingTerminalScreen;
 import eu.sytxlabs.tsautocraft.client.GhostTargets;
 import eu.sytxlabs.tsautocraft.client.IOScreen;
+import eu.sytxlabs.tsautocraft.client.LevelMaintainerScreen;
 import eu.sytxlabs.tsautocraft.client.PatternProviderScreen;
+import eu.sytxlabs.tsautocraft.menu.LevelMaintainerMenu;
 import eu.sytxlabs.tsautocraft.menu.MenuUtil;
 import eu.sytxlabs.tsautocraft.menu.PatternProviderMenu;
 import eu.sytxlabs.tsautocraft.menu.PatternTerminalMenu;
@@ -38,7 +40,8 @@ import eu.sytxlabs.tsautocraft.menu.RequesterMenu;
 
 /**
  * Optional REI integration (entrypoint {@code rei_client}, only loaded when REI is installed), same features as JEI: "+" into the Pattern Terminal (fills the grid),
- * Pattern Provider (encodes into a free slot) and Requester (output becomes an entry), ghost drag onto the Pattern Terminal, Requester and Crafting Emitter, upgrade panels excluded.
+ * Pattern Provider (encodes into a free slot), Requester and Level Maintainer (output becomes an entry), ghost drag onto the Pattern Terminal, Requester,
+ * Level Maintainer and Crafting Emitter, upgrade panels excluded.
  */
 public class TsAutocraftReiPlugin implements REIClientPlugin {
 
@@ -54,7 +57,7 @@ public class TsAutocraftReiPlugin implements REIClientPlugin {
 
 	@Override
 	public void registerExclusionZones(ExclusionZones zones) {
-		for (Class<? extends IScreen> c : List.of(PatternProviderScreen.class, IOScreen.class, AutocraftingTerminalScreen.class)) {
+		for (Class<? extends IScreen> c : List.of(PatternProviderScreen.class, IOScreen.class, AutocraftingTerminalScreen.class, LevelMaintainerScreen.class)) {
 			zones.register(c, screen -> {
 				List<Rectangle> l = new ArrayList<>();
 				screen.getExclusionAreas(b -> l.add(new Rectangle(b.x(), b.y(), b.width(), b.height())));
@@ -85,8 +88,8 @@ public class TsAutocraftReiPlugin implements REIClientPlugin {
 		public Result handle(Context context) {
 			var menu = context.getMenu();
 			boolean terminal = menu instanceof PatternTerminalMenu, provider = menu instanceof PatternProviderMenu;
-			boolean requester = menu instanceof RequesterMenu;
-			if (!terminal && !provider && !requester) return Result.createNotApplicable();
+			boolean requester = menu instanceof RequesterMenu, maintainer = menu instanceof LevelMaintainerMenu;
+			if (!terminal && !provider && !requester && !maintainer) return Result.createNotApplicable();
 			Display display = context.getDisplay();
 			Player player = context.getMinecraft().player;
 			if (player == null) return Result.createNotApplicable();
@@ -96,6 +99,13 @@ public class TsAutocraftReiPlugin implements REIClientPlugin {
 				if (out.isEmpty()) return Result.createFailed(Component.translatable("msg.tsautocraft.jei.no_items"));
 				ItemStack target = out.getFirst().copyWithCount(1);
 				if (((RequesterMenu) menu).entryFor(target) < 0) return Result.createFailed(Component.translatable("msg.tsautocraft.jei.requester_full"));
+				if (context.isActuallyCrafting()) MenuUtil.sendToServer(player, o -> o.store("jei_req", ItemStack.CODEC, target));
+				return Result.createSuccessful().blocksFurtherHandling();
+			}
+			if (maintainer) {
+				if (out.isEmpty()) return Result.createFailed(Component.translatable("msg.tsautocraft.jei.no_items"));
+				ItemStack target = out.getFirst().copyWithCount(1);
+				if (((LevelMaintainerMenu) menu).entryFor(target) < 0) return Result.createFailed(Component.translatable("msg.tsautocraft.jei.maintainer_full"));
 				if (context.isActuallyCrafting()) MenuUtil.sendToServer(player, o -> o.store("jei_req", ItemStack.CODEC, target));
 				return Result.createSuccessful().blocksFurtherHandling();
 			}

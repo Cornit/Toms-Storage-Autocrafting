@@ -30,7 +30,29 @@ public final class CraftingPlanner<K, P> {
 
 	public record Step<P>(P pattern, long crafts) {}
 
-	public record Result<K, P>(List<Step<P>> steps, Map<K, Long> missing, Map<K, Long> fromStock) {
+	/**
+	 * One need in the recipe tree (only recorded on request): {@code amount} of {@code item}, covered by {@code fromStock} (storage or surplus), {@code crafts} of {@code pattern} and {@code missing}.
+	 * Children are the inputs of the pattern.
+	 */
+	public static final class Node<K, P> {
+		public final K item;
+		public final long amount;
+		public long fromStock, crafts, missing;
+		public P pattern;
+		public final List<Node<K, P>> children = new ArrayList<>();
+
+		Node(K item, long amount) {
+			this.item = item;
+			this.amount = amount;
+		}
+	}
+
+	/** {@code tree} = root node (the target), null if the tree was not recorded. */
+	public record Result<K, P>(List<Step<P>> steps, Map<K, Long> missing, Map<K, Long> fromStock, Node<K, P> tree) {
+		public Result(List<Step<P>> steps, Map<K, Long> missing, Map<K, Long> fromStock) {
+			this(steps, missing, fromStock, null);
+		}
+
 		public boolean isComplete() {
 			return missing.isEmpty();
 		}
@@ -47,6 +69,7 @@ public final class CraftingPlanner<K, P> {
 	private LinkedHashMap<P, Long> steps;
 	private Map<K, Long> missing;
 	private Set<K> inProgress;
+	private Node<K, P> current;
 
 	/**
 	 * @param stock       current stock in the network
@@ -63,20 +86,35 @@ public final class CraftingPlanner<K, P> {
 
 	/** @param useStockForTarget true = existing stock of the target counts (requester), false = craft exactly {@code amount} new items (terminal request) */
 	public Result<K, P> plan(K target, long amount, boolean useStockForTarget) {
+		return plan(target, amount, useStockForTarget, false);
+	}
+
+	/** @param recordTree also build the recipe tree ({@link Result#tree()}) */
+	public Result<K, P> plan(K target, long amount, boolean useStockForTarget, boolean recordTree) {
 		virtual = new HashMap<>();
 		fromStock = new HashMap<>();
 		steps = new LinkedHashMap<>();
 		missing = new LinkedHashMap<>();
 		inProgress = new HashSet<>();
+		Node<K, P> holder = recordTree ? new Node<>(null, 0) : null;
+		Node<K, P> root = null;
 
 		if (amount > 0) {
-			if (useStockForTarget) need(target, amount, 0);
-			else craft(target, amount, 0);
+			if (useStockForTarget) {
+				current = holder;
+				need(target, amount, 0);
+				if (holder != null) root = holder.children.getFirst();
+			} else {
+				if (holder != null) root = new Node<>(target, amount);
+				current = root;
+				craft(target, amount, 0);
+			}
 		}
+		current = null;
 
 		List<Step<P>> list = new ArrayList<>(steps.size());
 		steps.forEach((p, c) -> list.add(new Step<>(p, c)));
-		return new Result<>(Collections.unmodifiableList(list), Collections.unmodifiableMap(missing), Collections.unmodifiableMap(fromStock));
+		return new Result<>(Collections.unmodifiableList(list), Collections.unmodifiableMap(missing), Collections.unmodifiableMap(fromStock), root);
 	}
 
 	private long available(K k) {
@@ -85,27 +123,48 @@ public final class CraftingPlanner<K, P> {
 
 	/** Cover a need: first from (virtual) storage, craft the rest. */
 	private void need(K k, long amount, int depth) {
+		Node<K, P> parent = current, node = null;
+		if (parent != null) {
+			node = new Node<>(k, amount);
+			parent.children.add(node);
+		}
 		long avail = available(k);
 		long take = Math.min(avail, amount);
 		if (take > 0) {
 			virtual.put(k, avail - take);
 			fromStock.merge(k, take, Long::sum);
 			amount -= take;
+			if (node != null) node.fromStock = take;
 		}
-		if (amount > 0) craft(k, amount, depth);
+		if (amount > 0) {
+			current = node;
+			try {
+				craft(k, amount, depth);
+			} finally {
+				current = parent;
+			}
+		}
+	}
+
+	private void addMissing(K k, long amount) {
+		missing.merge(k, amount, Long::sum);
+		if (current != null) current.missing += amount;
 	}
 
 	/** Craft {@code amount} of {@code k} using patterns. */
 	private void craft(K k, long amount, int depth) {
 		List<P> candidates = patternsFor.apply(k);
 		if (candidates == null || candidates.isEmpty() || depth > MAX_DEPTH || inProgress.contains(k)) {
-			missing.merge(k, amount, Long::sum);
+			addMissing(k, amount);
 			return;
 		}
 		if (candidates.size() == 1) {
 			applyPattern(k, amount, candidates.getFirst(), depth);
 			return;
 		}
+		Node<K, P> node = current;
+		int childrenBefore = node != null ? node.children.size() : 0;
+		long nodeMissingBefore = node != null ? node.missing : 0;
 		for (P p : candidates) {
 			Snapshot s = snapshot();
 			int missingBefore = missing.size();
@@ -113,6 +172,12 @@ public final class CraftingPlanner<K, P> {
 			applyPattern(k, amount, p, depth);
 			if (missing.size() == missingBefore && sum(missing) == missingSumBefore) return;
 			restore(s);
+			if (node != null) {
+				node.children.subList(childrenBefore, node.children.size()).clear();
+				node.missing = nodeMissingBefore;
+				node.pattern = null;
+				node.crafts = 0;
+			}
 		}
 		applyPattern(k, amount, candidates.getFirst(), depth);
 	}
@@ -120,13 +185,17 @@ public final class CraftingPlanner<K, P> {
 	private void applyPattern(K k, long amount, P p, int depth) {
 		long outPer = outputsOf.apply(p).getOrDefault(k, 0L);
 		if (outPer <= 0) {
-			missing.merge(k, amount, Long::sum);
+			addMissing(k, amount);
 			return;
 		}
 		long crafts = ceilDiv(amount, outPer);
 		if (crafts > MAX_CRAFTS_PER_STEP) {
-			missing.merge(k, amount, Long::sum);
+			addMissing(k, amount);
 			return;
+		}
+		if (current != null) {
+			current.pattern = p;
+			current.crafts = crafts;
 		}
 		inProgress.add(k);
 		for (Map.Entry<K, Long> in : inputsOf.apply(p).entrySet()) {
@@ -137,7 +206,7 @@ public final class CraftingPlanner<K, P> {
 		for (Map.Entry<K, Long> out : outputsOf.apply(p).entrySet()) {
 			long produced = Math.multiplyExact(out.getValue(), crafts);
 			if (out.getKey().equals(k)) produced -= amount;
-			if (produced > 0) virtual.merge(out.getKey(), produced, Long::sum);
+			if (produced > 0) virtual.put(out.getKey(), available(out.getKey()) + produced); // on top of the real stock, not instead of it
 		}
 	}
 

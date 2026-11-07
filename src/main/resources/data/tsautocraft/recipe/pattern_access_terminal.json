@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IPI",
+    "RTR",
+    "IcI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "P": "tsautocraft:blank_pattern",
+    "R": "minecraft:redstone",
+    "T": "toms_storage:storage_terminal",
+    "c": "toms_storage:inventory_cable"
+  },
+  "result": {
+    "id": "tsautocraft:pattern_access_terminal",
+    "count": 1
+  }
+}

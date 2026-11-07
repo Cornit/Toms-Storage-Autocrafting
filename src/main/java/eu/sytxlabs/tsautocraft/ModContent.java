@@ -32,6 +32,7 @@ import com.tom.storagemod.block.IPaintable;
 
 import eu.sytxlabs.tsautocraft.api.Upgrades;
 import eu.sytxlabs.tsautocraft.block.AutocraftingTerminalBlock;
+import eu.sytxlabs.tsautocraft.block.PatternAccessTerminalBlock;
 import eu.sytxlabs.tsautocraft.block.ConnectorNodeBlock;
 import eu.sytxlabs.tsautocraft.block.CraftingEmitterBlock;
 import eu.sytxlabs.tsautocraft.block.FramedConnectorNodeBlock;
@@ -39,18 +40,22 @@ import eu.sytxlabs.tsautocraft.block.NodeBlock;
 import eu.sytxlabs.tsautocraft.block.PatternProviderBlock;
 import eu.sytxlabs.tsautocraft.block.PatternTerminalBlock;
 import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity;
+import eu.sytxlabs.tsautocraft.blockentity.PatternAccessTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.blockentity.CraftingEmitterBlockEntity;
 import eu.sytxlabs.tsautocraft.blockentity.ExporterBlockEntity;
 import eu.sytxlabs.tsautocraft.blockentity.ImporterBlockEntity;
 import eu.sytxlabs.tsautocraft.blockentity.PatternProviderBlockEntity;
 import eu.sytxlabs.tsautocraft.blockentity.PatternTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.blockentity.RequesterBlockEntity;
+import eu.sytxlabs.tsautocraft.blockentity.LevelMaintainerBlockEntity;
 import eu.sytxlabs.tsautocraft.menu.AutocraftingTerminalMenu;
+import eu.sytxlabs.tsautocraft.menu.PatternAccessTerminalMenu;
 import eu.sytxlabs.tsautocraft.menu.CraftingEmitterMenu;
 import eu.sytxlabs.tsautocraft.menu.IOMenu;
 import eu.sytxlabs.tsautocraft.menu.PatternProviderMenu;
 import eu.sytxlabs.tsautocraft.menu.PatternTerminalMenu;
 import eu.sytxlabs.tsautocraft.menu.RequesterMenu;
+import eu.sytxlabs.tsautocraft.menu.LevelMaintainerMenu;
 import eu.sytxlabs.tsautocraft.pattern.PatternData;
 import eu.sytxlabs.tsautocraft.pattern.PatternItem;
 
@@ -77,7 +82,9 @@ public final class ModContent {
 	public static final FramedConnectorNodeBlock PATTERN_PROVIDER_CONNECTOR_FRAMED = block("pattern_provider_connector_framed", p -> new FramedConnectorNodeBlock(p.noOcclusion(), PatternProviderBlockEntity::new, true));
 	public static final PatternTerminalBlock PATTERN_TERMINAL = block("pattern_terminal", p -> new PatternTerminalBlock(p.noOcclusion().lightLevel(s -> 6)));
 	public static final AutocraftingTerminalBlock AUTOCRAFTING_TERMINAL = block("autocrafting_terminal", p -> new AutocraftingTerminalBlock(p.noOcclusion().lightLevel(s -> 6)));
+	public static final PatternAccessTerminalBlock PATTERN_ACCESS_TERMINAL = block("pattern_access_terminal", p -> new PatternAccessTerminalBlock(p.noOcclusion().lightLevel(s -> 6)));
 	public static final NodeBlock REQUESTER = block("requester", p -> new NodeBlock(p, RequesterBlockEntity::new));
+	public static final NodeBlock LEVEL_MAINTAINER = block("level_maintainer", p -> new NodeBlock(p, LevelMaintainerBlockEntity::new));
 	public static final CraftingEmitterBlock CRAFTING_EMITTER = block("crafting_emitter", p -> new CraftingEmitterBlock(p, CraftingEmitterBlockEntity::new));
 	/** Crafting Emitter in connector shape: signal only out of its front. */
 	public static final ConnectorNodeBlock CRAFTING_EMITTER_DIRECTIONAL = block("crafting_emitter_directional", p -> new ConnectorNodeBlock(p.noOcclusion(), CraftingEmitterBlockEntity::new, true));
@@ -94,6 +101,8 @@ public final class ModContent {
 	public static final Item CRAFTING_UPGRADE = upgrade("crafting_upgrade");
 	/** Importer/Exporter: work only with / without a redstone signal or toggle on pulses; Pattern Provider: redstone pulse after every delivery. */
 	public static final Item REDSTONE_UPGRADE = upgrade("redstone_upgrade");
+	/** In-game guide, right click opens {@code client/GuideScreen}. */
+	public static final GuideBookItem GUIDE_BOOK = item("guide_book", GuideBookItem::new, p -> p.stacksTo(1).component(DESCRIPTION_COMPONENT, new ItemDescription("tooltip.tsautocraft.guide_book", false)));
 
 	static {
 		Upgrades.register(Upgrades.PATTERN_PROVIDER, CAPACITY_UPGRADE, PatternProviderBlockEntity.MAX_CAPACITY);
@@ -108,6 +117,8 @@ public final class ModContent {
 		Upgrades.register(Upgrades.EXPORTER, REDSTONE_UPGRADE);
 		Upgrades.register(Upgrades.IMPORTER, REDSTONE_UPGRADE);
 		Upgrades.register(Upgrades.PATTERN_PROVIDER, REDSTONE_UPGRADE);
+		Upgrades.register(Upgrades.LEVEL_MAINTAINER, SPEED_UPGRADE, 4);
+		Upgrades.register(Upgrades.LEVEL_MAINTAINER, REDSTONE_UPGRADE);
 	}
 
 	// --- Block Entities ---
@@ -116,7 +127,9 @@ public final class ModContent {
 	public static final BlockEntityType<PatternProviderBlockEntity> PATTERN_PROVIDER_BE = blockEntity("pattern_provider", PatternProviderBlockEntity::new, PATTERN_PROVIDER, PATTERN_PROVIDER_CONNECTOR, PATTERN_PROVIDER_CONNECTOR_FRAMED);
 	public static final BlockEntityType<PatternTerminalBlockEntity> PATTERN_TERMINAL_BE = blockEntity("pattern_terminal", PatternTerminalBlockEntity::new, PATTERN_TERMINAL);
 	public static final BlockEntityType<AutocraftingTerminalBlockEntity> AUTOCRAFTING_TERMINAL_BE = blockEntity("autocrafting_terminal", AutocraftingTerminalBlockEntity::new, AUTOCRAFTING_TERMINAL);
+	public static final BlockEntityType<PatternAccessTerminalBlockEntity> PATTERN_ACCESS_TERMINAL_BE = blockEntity("pattern_access_terminal", PatternAccessTerminalBlockEntity::new, PATTERN_ACCESS_TERMINAL);
 	public static final BlockEntityType<RequesterBlockEntity> REQUESTER_BE = blockEntity("requester", RequesterBlockEntity::new, REQUESTER);
+	public static final BlockEntityType<LevelMaintainerBlockEntity> LEVEL_MAINTAINER_BE = blockEntity("level_maintainer", LevelMaintainerBlockEntity::new, LEVEL_MAINTAINER);
 	public static final BlockEntityType<CraftingEmitterBlockEntity> CRAFTING_EMITTER_BE = blockEntity("crafting_emitter", CraftingEmitterBlockEntity::new, CRAFTING_EMITTER, CRAFTING_EMITTER_DIRECTIONAL, CRAFTING_EMITTER_DIRECTIONAL_FRAMED);
 
 	// --- Menus (client constructor without block entity) ---
@@ -125,7 +138,9 @@ public final class ModContent {
 	public static final MenuType<PatternProviderMenu> PATTERN_PROVIDER_MENU = menu("pattern_provider", PatternProviderMenu::new);
 	public static final MenuType<PatternTerminalMenu> PATTERN_TERMINAL_MENU = menu("pattern_terminal", PatternTerminalMenu::new);
 	public static final MenuType<AutocraftingTerminalMenu> AUTOCRAFTING_TERMINAL_MENU = menu("autocrafting_terminal", AutocraftingTerminalMenu::new);
+	public static final MenuType<PatternAccessTerminalMenu> PATTERN_ACCESS_TERMINAL_MENU = menu("pattern_access_terminal", PatternAccessTerminalMenu::new);
 	public static final MenuType<RequesterMenu> REQUESTER_MENU = menu("requester", RequesterMenu::new);
+	public static final MenuType<LevelMaintainerMenu> LEVEL_MAINTAINER_MENU = menu("level_maintainer", LevelMaintainerMenu::new);
 	public static final MenuType<CraftingEmitterMenu> CRAFTING_EMITTER_MENU = menu("crafting_emitter", CraftingEmitterMenu::new);
 
 	// --- Creative Tab ---

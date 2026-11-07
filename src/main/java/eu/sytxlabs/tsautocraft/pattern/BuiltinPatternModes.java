@@ -17,10 +17,12 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
+import net.minecraft.world.item.crafting.BrewingRecipe;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
+import net.minecraft.world.level.block.entity.BrewingStandBlockEntity;
 
 import eu.sytxlabs.tsautocraft.api.CraftingProvider.DispatchResult;
 import eu.sytxlabs.tsautocraft.api.MachineProfile;
@@ -193,32 +195,160 @@ public final class BuiltinPatternModes {
 	};
 
 	/**
+	 * Brewing stand, laid out like its GUI in the Pattern Terminal: fuel top left (optional, only delivered when the stand's
+	 * fuel slot is empty), reagent top middle, 1-3 bottles in the bottom row; the other positions are not used.
+	 */
+	public static final PatternMode BREWING = new PatternMode() {
+		@Override
+		public Identifier id() {
+			return PatternData.BREWING;
+		}
+
+		@Override
+		public ItemStack icon() {
+			return new ItemStack(Items.BREWING_STAND);
+		}
+
+		@Override
+		public boolean fixedInputs() {
+			return true;
+		}
+
+		@Override
+		public boolean keepsGridPositions() {
+			return true;
+		}
+
+		@Override
+		public boolean gridSlotEnabled(int index) {
+			return index == PatternEncoder.BREW_FUEL || index == PatternEncoder.BREW_REAGENT || index >= PatternEncoder.BREW_FIRST_BOTTLE;
+		}
+
+		@Override
+		public boolean optionalInput(PatternData d, int index) {
+			return index == PatternEncoder.BREW_FUEL && d.inputs().size() == 9;
+		}
+
+		@Override
+		public List<ItemStack> computeOutputs(Level level, List<ItemStack> grid) {
+			return PatternEncoder.brewingOutputs(level, grid);
+		}
+
+		@Override
+		public PatternEncoder.Result encode(Level level, List<ItemStack> grid, List<ItemStack> outputs, boolean substitutes) {
+			return PatternEncoder.encodeBrewing(level, grid);
+		}
+
+		@Override
+		public boolean isValid(PatternData d) {
+			if (!PatternMode.super.isValid(d) || d.inputs().size() != 9 || d.inputs().get(PatternEncoder.BREW_REAGENT).isEmpty()) return false;
+			for (int i = PatternEncoder.BREW_FIRST_BOTTLE; i < 9; i++) if (!d.inputs().get(i).isEmpty()) return true;
+			return false;
+		}
+
+		/** JEI/REI show one bottle: a pattern always brews a full stand. */
+		@Override
+		public List<ItemStack> transferInputs(Level level, List<ItemStack> inputs) {
+			PatternEncoder.Brew b = PatternEncoder.findBrew(level, inputs);
+			if (b == null) return inputs;
+			List<ItemStack> grid = new ArrayList<>(java.util.Collections.nCopies(9, ItemStack.EMPTY));
+			grid.set(PatternEncoder.BREW_REAGENT, b.reagent());
+			for (int i = PatternEncoder.BREW_FIRST_BOTTLE; i < 9; i++) grid.set(i, b.input());
+			return grid;
+		}
+
+		@Override
+		public boolean matchesRecipe(Object recipe) {
+			return recipe instanceof RecipeHolder<?> h && h.value() instanceof BrewingRecipe || isJeiBrewing(recipe.getClass());
+		}
+
+		@Override
+		public boolean matchesReiCategory(Identifier category) {
+			return category.getNamespace().equals("minecraft") && category.getPath().equals("plugins/brewing");
+		}
+
+		@Override
+		public Outcome dispatch(DispatchContext ctx, PatternData pattern) {
+			return dispatchBrewing(ctx, pattern);
+		}
+	};
+
+	/** JEI's own brewing recipe type (by name: JEI is optional at runtime). */
+	private static boolean isJeiBrewing(Class<?> c) {
+		for (; c != null; c = c.getSuperclass()) {
+			for (Class<?> i : c.getInterfaces()) if (i.getName().equals("mezz.jei.api.recipe.vanilla.IJeiBrewingRecipe")) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Brewing: bottles into slots 0-2, the reagent into slot 3, only into an empty stand (one brew at a time, Stack Upgrades
+	 * do not apply). The pattern's fuel goes into slot 4 only while it is empty, from unreserved stock and outside the job
+	 * (not planned per craft). The Importer waits until the reagent is used up, so it never takes unfinished potions.
+	 */
+	public static PatternMode.Outcome dispatchBrewing(PatternMode.DispatchContext ctx, PatternData p) {
+		//noinspection resource
+		if (!(ctx.level().getBlockEntity(ctx.targetPos()) instanceof BrewingStandBlockEntity stand)) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+		if (p.inputs().size() != 9) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+		for (int i = 0; i < 4; i++) if (!stand.getItem(i).isEmpty()) return PatternMode.Outcome.fail(DispatchResult.BUSY);
+		List<ItemStack> want = new ArrayList<>(4);
+		List<Integer> slots = new ArrayList<>(4);
+		for (int i = PatternEncoder.BREW_FIRST_BOTTLE; i < 9; i++) {
+			PatternData.Entry e = p.inputs().get(i);
+			if (e.isEmpty()) continue;
+			want.add(e.stack());
+			slots.add(i - PatternEncoder.BREW_FIRST_BOTTLE);
+		}
+		want.add(p.inputs().get(PatternEncoder.BREW_REAGENT).stack());
+		slots.add(3);
+		List<ItemStack> got = ctx.pull(want);
+		if (got == null) return PatternMode.Outcome.fail(DispatchResult.MISSING);
+		for (int i = 0; i < got.size(); i++) stand.setItem(slots.get(i), got.get(i));
+		PatternData.Entry fuel = p.inputs().get(PatternEncoder.BREW_FUEL);
+		if (!fuel.isEmpty() && stand.getItem(4).isEmpty() && ctx.available().applyAsLong(new ItemKey(fuel.item())) >= 1) {
+			try {
+				List<ItemStack> f = StorageUtil.pullAll(ctx.network(), ctx.level(), List.of(fuel.item().copyWithCount(1)));
+				if (f != null) stand.setItem(4, f.getFirst());
+			} catch (StorageUtil.LeftoverException e) {
+				e.leftovers().forEach(ctx::giveBack);
+			}
+		}
+		stand.setChanged();
+		return PatternMode.Outcome.ok(1);
+	}
+
+	/**
 	 * Processing: one set after the other into the target's item storage, each set must fit completely.
-	 * Blocking mode: only while none of the pattern's inputs are left in the target. A {@link MachineProfile} of the target may choose the faces to insert through, force blocking and ask for a redstone pulse after the delivery.
+	 * Blocking mode: only while none of the pattern's inputs are left in the target. A {@link MachineProfile} of the target may choose the faces to insert through (per input with routes), force blocking and ask for a redstone pulse after the delivery.
 	 */
 	public static PatternMode.Outcome dispatchInsert(PatternMode.DispatchContext ctx, PatternData p) {
         //noinspection resource
         MachineProfile profile = MachineProfiles.find(ctx.level().getBlockState(ctx.targetPos()));
-		List<Storage<ItemVariant>> targets = new ArrayList<>();
-		if (profile.sides().isEmpty()) {
-			Storage<ItemVariant> s = StorageUtil.facingStorage(ctx.level(), ctx.providerPos(), ctx.facing());
-			if (s != null) targets.add(s);
-		} else {
-			for (Direction side : profile.sides()) {
-				Storage<ItemVariant> s = ItemStorage.SIDED.find(ctx.level(), ctx.targetPos(), side);
-				if (s != null) targets.add(s);
+		// One stack per input (split at the stack size), each with the faces it goes through
+		List<ItemStack> in = new ArrayList<>();
+		List<List<Storage<ItemVariant>>> where = new ArrayList<>();
+		java.util.Map<List<Direction>, List<Storage<ItemVariant>>> bySides = new java.util.HashMap<>();
+		Set<Storage<ItemVariant>> all = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+		int index = 0;
+		for (PatternData.Entry e : p.inputs()) {
+			if (e.isEmpty()) continue;
+			List<Storage<ItemVariant>> targets = bySides.computeIfAbsent(profile.sidesFor(e.item(), index++), sides -> storagesFor(ctx, sides));
+			if (targets.isEmpty()) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+			all.addAll(targets);
+			for (int left = e.count(), max = Math.max(1, e.item().getMaxStackSize()); left > 0; left -= max) {
+				in.add(e.item().copyWithCount(Math.min(left, max)));
+				where.add(targets);
 			}
 		}
-		if (targets.isEmpty()) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
-		if (profile.blocking().orElse(ctx.blocking()) && targets.stream().anyMatch(t -> containsAnyInput(t, p))) {
+		if (in.isEmpty()) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+		if (profile.blocking().orElse(ctx.blocking()) && all.stream().anyMatch(t -> containsAnyInput(t, p))) {
 			return PatternMode.Outcome.fail(DispatchResult.BUSY);
 		}
 
-		List<ItemStack> in = p.inputStacks();
 		DispatchResult fail = DispatchResult.OK;
 		int crafts = 0;
 		for (int set = 0; set < ctx.maxCrafts(); set++) {
-			if (!StorageUtil.insertAll(targets, in, false)) {
+			if (!insertRouted(in, where, false)) {
 				fail = DispatchResult.NO_SPACE;
 				break;
 			}
@@ -227,11 +357,41 @@ public final class BuiltinPatternModes {
 				fail = DispatchResult.MISSING;
 				break;
 			}
-			if (!StorageUtil.insertAll(targets, got, true)) got.forEach(ctx::giveBack); // changed in between: back to storage
+			if (!insertRouted(got, where, true)) {
+				ctx.undoPull(got); // changed in between: back to storage, not a craft
+				fail = DispatchResult.NO_SPACE;
+				break;
+			}
 			crafts++;
 		}
 		if (crafts > 0) ctx.redstonePulse(profile.redstonePulse());
 		return crafts > 0 ? PatternMode.Outcome.ok(crafts) : PatternMode.Outcome.fail(fail);
+	}
+
+	/** Item storages of the target through {@code sides} (empty = the face that points at the provider). */
+	private static List<Storage<ItemVariant>> storagesFor(PatternMode.DispatchContext ctx, List<Direction> sides) {
+		List<Storage<ItemVariant>> l = new ArrayList<>();
+		if (sides.isEmpty()) {
+			Storage<ItemVariant> s = StorageUtil.facingStorage(ctx.level(), ctx.providerPos(), ctx.facing());
+			if (s != null) l.add(s);
+		} else {
+			for (Direction side : sides) {
+				Storage<ItemVariant> s = ItemStorage.SIDED.find(ctx.level(), ctx.targetPos(), side);
+				if (s != null) l.add(s);
+			}
+		}
+		return l;
+	}
+
+	/** Inserts {@code stacks.get(i)} through {@code where.get(i)}, all or nothing. */
+	private static boolean insertRouted(List<ItemStack> stacks, List<List<Storage<ItemVariant>>> where, boolean commit) {
+		try (Transaction t = Transaction.openOuter()) {
+			for (int i = 0; i < stacks.size(); i++) {
+				if (!StorageUtil.insertAll(where.get(i), List.of(stacks.get(i)), t)) return false;
+			}
+			if (commit) t.commit();
+			return true;
+		}
 	}
 
 	/** Fluid processing: fluid containers are emptied into the target's fluid storage, other inputs are inserted. */
@@ -247,8 +407,6 @@ public final class BuiltinPatternModes {
 		Storage<FluidVariant> tank = FluidStorage.SIDED.find(ctx.level(), ctx.targetPos(), ctx.facing().getOpposite());
 		Storage<ItemVariant> items = StorageUtil.facingStorage(ctx.level(), ctx.providerPos(), ctx.facing());
 		if (anyFluid && tank == null || anyItem && items == null) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
-		List<ItemStack> itemIn = new ArrayList<>();
-		for (int i = 0; i < in.size(); i++) if (!fluid[i]) itemIn.add(in.get(i));
 		if (ctx.blocking() && (anyItem && containsAnyInput(items, p) || anyFluid && FluidUtil.containsAny(tank, FluidUtil.fluidsOf(in)))) {
 			return PatternMode.Outcome.fail(DispatchResult.BUSY);
 		}
@@ -256,7 +414,7 @@ public final class BuiltinPatternModes {
 		DispatchResult fail = DispatchResult.OK;
 		int crafts = 0;
 		for (int set = 0; set < ctx.maxCrafts(); set++) {
-			if (anyFluid && !emptyAll(in, fluid, tank) || anyItem && !StorageUtil.insertAll(List.of(items), itemIn, false)) {
+			if (deliverFluidSet(in, fluid, tank, items, false) == null) {
 				fail = DispatchResult.NO_SPACE;
 				break;
 			}
@@ -265,48 +423,41 @@ public final class BuiltinPatternModes {
 				fail = DispatchResult.MISSING;
 				break;
 			}
-			List<ItemStack> gotItems = new ArrayList<>();
-			for (int i = 0; i < got.size(); i++) if (!fluid[i]) gotItems.add(got.get(i));
-			if (anyFluid) {
-				List<ItemStack> empties = emptyAllCommit(got, fluid, tank);
-				if (empties == null) {
-					got.forEach(ctx::giveBack); // changed in between: everything back to storage
-					break;
-				}
-				empties.forEach(ctx::giveBack);
+			List<ItemStack> empties = deliverFluidSet(got, fluid, tank, items, true);
+			if (empties == null) {
+				ctx.undoPull(got); // changed in between: everything back to storage, not a craft
+				fail = DispatchResult.NO_SPACE;
+				break;
 			}
-			if (anyItem && !StorageUtil.insertAll(List.of(items), gotItems, true)) gotItems.forEach(ctx::giveBack);
+			empties.forEach(ctx::giveBack);
 			crafts++;
 		}
 		return crafts > 0 ? PatternMode.Outcome.ok(crafts) : PatternMode.Outcome.fail(fail);
 	}
 
-	/** Test: do the fluids of all containers marked in {@code fluid} fit into {@code tank}? */
-	private static boolean emptyAll(List<ItemStack> stacks, boolean[] fluid, Storage<FluidVariant> tank) {
-		try (Transaction t = Transaction.openOuter()) {
-			for (int i = 0; i < stacks.size(); i++) {
-				if (!fluid[i]) continue;
-				ItemStack st = stacks.get(i);
-				for (int n = 0; n < st.getCount(); n++) if (FluidUtil.emptyInto(st.copyWithCount(1), tank, t) == null) return false;
-			}
-			return true;
-		}
-	}
-
-	/** Empties the containers for real; returns the empty containers, or null (nothing changed) if something did not fit. */
-	private static List<ItemStack> emptyAllCommit(List<ItemStack> stacks, boolean[] fluid, Storage<FluidVariant> tank) {
+	/**
+	 * Empties the containers marked in {@code fluid} into {@code tank} and inserts the other stacks into {@code items},
+	 * in one transaction: all or nothing. Returns the empty containers, or null (nothing changed) if something did not fit.
+	 * @param commit false = only test
+	 */
+	private static List<ItemStack> deliverFluidSet(List<ItemStack> stacks, boolean[] fluid, Storage<FluidVariant> tank, Storage<ItemVariant> items, boolean commit) {
 		List<ItemStack> empties = new ArrayList<>();
+		List<ItemStack> other = new ArrayList<>();
 		try (Transaction t = Transaction.openOuter()) {
 			for (int i = 0; i < stacks.size(); i++) {
-				if (!fluid[i]) continue;
 				ItemStack st = stacks.get(i);
+				if (!fluid[i]) {
+					other.add(st);
+					continue;
+				}
 				for (int n = 0; n < st.getCount(); n++) {
 					ItemStack empty = FluidUtil.emptyInto(st.copyWithCount(1), tank, t);
 					if (empty == null) return null;
 					if (!empty.isEmpty()) empties.add(empty);
 				}
 			}
-			t.commit();
+			if (other.stream().anyMatch(s -> !s.isEmpty()) && (items == null || !StorageUtil.insertAll(List.of(items), other, t))) return null;
+			if (commit) t.commit();
 		}
 		return empties;
 	}

@@ -50,6 +50,7 @@ public class CraftingJob {
 		public long remaining;
 		public long inFlight;
 		public long partial;
+		long flightSince = Long.MAX_VALUE;
 		Reason reason = Reason.NONE;
 		ItemStack reasonItem = ItemStack.EMPTY;
 		long need, have;
@@ -109,7 +110,7 @@ public class CraftingJob {
 		public static final Codec<Amount> CODEC = RecordCodecBuilder.create(i -> i.group(ItemStack.OPTIONAL_CODEC.fieldOf("i").forGetter(Amount::item), Codec.LONG.fieldOf("c").forGetter(Amount::count)).apply(i, Amount::new));
 	}
 
-	public static final Codec<CraftingJob> CODEC = RecordCodecBuilder.create(i -> i.group(Codec.INT.fieldOf("id").forGetter(j -> j.id), ItemStack.OPTIONAL_CODEC.fieldOf("target").forGetter(j -> j.target), Codec.LONG.fieldOf("amount").forGetter(j -> j.amount), Step.CODEC.listOf().fieldOf("steps").forGetter(j -> j.steps), Codec.INT.fieldOf("state").forGetter(j -> j.state.ordinal()), Codec.LONG.fieldOf("baseline").forGetter(j -> j.baseline), Codec.INT.optionalFieldOf("wait", 0).forGetter(j -> j.waitTicks), Amount.CODEC.listOf().optionalFieldOf("reserved", List.of()).forGetter(CraftingJob::reservedList), Codec.INT.optionalFieldOf("prio", PRIORITY_NORMAL).forGetter(j -> j.priority), Codec.BOOL.optionalFieldOf("paused", false).forGetter(j -> j.paused)).apply(i, CraftingJob::new));
+	public static final Codec<CraftingJob> CODEC = RecordCodecBuilder.create(i -> i.group(Codec.INT.fieldOf("id").forGetter(j -> j.id), ItemStack.OPTIONAL_CODEC.fieldOf("target").forGetter(j -> j.target), Codec.LONG.fieldOf("amount").forGetter(j -> j.amount), Step.CODEC.listOf().fieldOf("steps").forGetter(j -> j.steps), Codec.INT.fieldOf("state").forGetter(j -> j.state.ordinal()), Codec.LONG.fieldOf("baseline").forGetter(j -> j.baseline), Codec.INT.optionalFieldOf("wait", 0).forGetter(j -> j.waitTicks), Amount.CODEC.listOf().optionalFieldOf("reserved", List.of()).forGetter(CraftingJob::reservedList), Codec.INT.optionalFieldOf("prio", PRIORITY_NORMAL).forGetter(j -> j.priority), Codec.BOOL.optionalFieldOf("paused", false).forGetter(j -> j.paused), Codec.BOOL.optionalFieldOf("tracked", false).forGetter(j -> j.tracked), Codec.LONG.optionalFieldOf("start", -1L).forGetter(j -> j.startTime)).apply(i, CraftingJob::new));
 	private static final AtomicInteger NEXT_UID = new AtomicInteger();
 	public final int id;
 	public final int uid = NEXT_UID.incrementAndGet();
@@ -130,11 +131,20 @@ public class CraftingJob {
 	private boolean paused;
 	private Level level;
 	private BlockPos ownerPos;
+	/** Game time the job was started (first bound to its owner), -1 = unknown. */
+	private long startTime = -1;
+	private final JobEta eta = new JobEta();
 
-	private CraftingJob(int id, ItemStack target, long amount, List<Step> steps, int state, long baseline, int waitTicks, List<Amount> reserved, int priority, boolean paused) {
+	private CraftingJob(int id, ItemStack target, long amount, List<Step> steps, int state, long baseline, int waitTicks, List<Amount> reserved, int priority, boolean paused, boolean tracked, long startTime) {
+		this(id, target, amount, steps, state, baseline, waitTicks, reserved, priority, paused, tracked);
+		this.startTime = startTime;
+	}
+
+	private CraftingJob(int id, ItemStack target, long amount, List<Step> steps, int state, long baseline, int waitTicks, List<Amount> reserved, int priority, boolean paused, boolean tracked) {
 		this.id = id;
 		this.priority = Math.clamp(priority, PRIORITY_LOW, PRIORITY_HIGH);
 		this.paused = paused;
+		this.tracked = tracked;
 		this.target = target.copyWithCount(1);
 		this.amount = amount;
 		this.steps = new ArrayList<>(steps);
@@ -176,6 +186,17 @@ public class CraftingJob {
 	void bind(Level level, BlockPos ownerPos) {
 		this.level = level;
 		this.ownerPos = ownerPos;
+		if (startTime < 0 && level != null) startTime = level.getGameTime();
+	}
+
+	/** Game time the job started, -1 if unknown. */
+	public long startTime() {
+		return startTime;
+	}
+
+	/** Estimated remaining seconds (smoothed rate of finished crafts), -1 = unknown. */
+	public long etaSeconds() {
+		return isFinished() ? 0 : eta.seconds(doneCrafts(), totalCrafts());
 	}
 
 	public Level level() {
@@ -195,14 +216,48 @@ public class CraftingJob {
 	/**
 	 * Result of planning: either a job or the missing amounts, plus the material list for the preview. {@code possible} = largest amount that could be crafted right now (only computed for previews that fail, else -1).
 	 */
-	public record PlanOutcome(CraftingJob job, Map<ItemKey, Long> missing, List<PlanEntry> materials, long possible) {
+	public record PlanOutcome(CraftingJob job, Map<ItemKey, Long> missing, List<PlanEntry> materials, long possible, List<TreeLine> tree) {
+		public PlanOutcome(CraftingJob job, Map<ItemKey, Long> missing, List<PlanEntry> materials, long possible) {
+			this(job, missing, materials, possible, List.of());
+		}
+
 		public boolean ok() {
 			return job != null;
 		}
 
 		public PlanOutcome withPossible(long possible) {
-			return new PlanOutcome(job, missing, materials, possible);
+			return new PlanOutcome(job, missing, materials, possible, tree);
 		}
+	}
+
+	/**
+	 * One node of the recipe tree in pre-order ({@code depth} 0 = target): {@code amount} needed, covered by {@code stored}, {@code crafts} of a pattern making {@code made}, and {@code missing}.
+	 * An empty {@code item} marks the end of a truncated tree ({@code amount} = nodes left out).
+	 */
+	public record TreeLine(ItemStack item, long amount, int depth, long stored, long crafts, long made, long missing) {
+		public static final int MAX_LINES = 200, MAX_DEPTH = 16;
+		public static final Codec<TreeLine> CODEC = RecordCodecBuilder.create(i -> i.group(ItemStack.OPTIONAL_CODEC.fieldOf("i").forGetter(TreeLine::item), Codec.LONG.fieldOf("a").forGetter(TreeLine::amount), Codec.INT.fieldOf("d").forGetter(TreeLine::depth), Codec.LONG.optionalFieldOf("s", 0L).forGetter(TreeLine::stored), Codec.LONG.optionalFieldOf("c", 0L).forGetter(TreeLine::crafts), Codec.LONG.optionalFieldOf("o", 0L).forGetter(TreeLine::made), Codec.LONG.optionalFieldOf("m", 0L).forGetter(TreeLine::missing)).apply(i, TreeLine::new));
+	}
+
+	/** Flattens the planner's tree (bounded by {@link TreeLine#MAX_LINES} and {@link TreeLine#MAX_DEPTH}). */
+	private static List<TreeLine> treeLines(CraftingPlanner.Node<ItemKey, PatternData> root) {
+		List<TreeLine> out = new ArrayList<>();
+		if (root == null) return out;
+		long[] skipped = {0};
+		flatten(root, 0, out, skipped);
+		if (skipped[0] > 0) out.add(new TreeLine(ItemStack.EMPTY, skipped[0], 0, 0, 0, 0, 0));
+		return out;
+	}
+
+	private static void flatten(CraftingPlanner.Node<ItemKey, PatternData> n, int depth, List<TreeLine> out, long[] skipped) {
+		if (out.size() >= TreeLine.MAX_LINES || depth > TreeLine.MAX_DEPTH) {
+			skipped[0]++;
+			for (var c : n.children) flatten(c, depth + 1, out, skipped);
+			return;
+		}
+		long made = n.pattern != null ? n.pattern.outputTotals().getOrDefault(n.item, 0L) * n.crafts : 0;
+		out.add(new TreeLine(n.item.create(1), n.amount, depth, n.fromStock, n.crafts, made, n.missing));
+		for (var c : n.children) flatten(c, depth + 1, out, skipped);
 	}
 
 	/** One line of the AE2 style material list: taken from storage, crafted (all steps), missing. */
@@ -251,17 +306,17 @@ public class CraftingJob {
 		CraftingPlanner<ItemKey, PatternData> planner = new CraftingPlanner<>(stock, byOutput::get, d -> inputs.getOrDefault(d, d.inputTotals()), PatternData::outputTotals);
 
 		ItemKey key = new ItemKey(target);
-		var result = planner.plan(key, amount, false);
+		var result = planner.plan(key, amount, false, notify);
 		List<PlanEntry> materials = materials(result);
 		if (notify) CraftingEvents.PLAN_CREATED.invoker().onPlan(level, target, amount, result.isComplete(), materials);
-		if (!result.isComplete()) return new PlanOutcome(null, new LinkedHashMap<>(result.missing()), materials, -1);
+		if (!result.isComplete()) return new PlanOutcome(null, new LinkedHashMap<>(result.missing()), materials, -1, treeLines(result.tree()));
 
 		List<Step> steps = new ArrayList<>();
 		result.steps().forEach(s -> steps.add(new Step(s.pattern(), s.crafts(), s.crafts())));
 		long baseline = StorageUtil.count(net, level, key);
 		List<Amount> reserve = new ArrayList<>();
 		result.fromStock().forEach((k, c) -> reserve.add(new Amount(k.create(1), c)));
-		return new PlanOutcome(new CraftingJob(id, target, amount, steps, State.RUNNING.ordinal(), baseline, 0, reserve, PRIORITY_NORMAL, false), Map.of(), materials, -1);
+		return new PlanOutcome(new CraftingJob(id, target, amount, steps, State.RUNNING.ordinal(), baseline, 0, reserve, PRIORITY_NORMAL, false, false), Map.of(), materials, -1, treeLines(result.tree()));
 	}
 
 	/** Largest amount below {@code amount} that can be crafted right now (binary search over complete plans), 0 if none. */
@@ -278,8 +333,10 @@ public class CraftingJob {
 	/** Input totals with every position replaced by its best-stocked option (the item itself on a tie). */
 	private static Map<ItemKey, Long> resolvedInputs(PatternData d, java.util.function.ToLongFunction<ItemKey> stock) {
 		Map<ItemKey, Long> m = new LinkedHashMap<>();
-		for (PatternData.Entry e : d.inputs()) {
-			if (e.isEmpty()) continue;
+		var mode = d.modeType();
+		for (int i = 0; i < d.inputs().size(); i++) {
+			PatternData.Entry e = d.inputs().get(i);
+			if (e.isEmpty() || mode.optionalInput(d, i)) continue; // e.g. fuel: delivered when needed, not planned
 			ItemKey best = new ItemKey(e.item());
 			long bestStock = stock.applyAsLong(best);
 			for (ItemStack alt : e.alternatives()) {
@@ -315,6 +372,7 @@ public class CraftingJob {
 	/** Run one execution step. Called every few ticks by the {@link JobScheduler} (higher priorities first). */
 	public void tick(Level level, IInventoryAccess net, List<? extends CraftingProvider> providers, int elapsedTicks, Reservations res) {
 		if (state == State.DONE || state == State.CANCELLED) return;
+		if (level != null) eta.sample(level.getGameTime(), doneCrafts(), paused);
 		if (paused) {
 			setReason(Reason.PAUSED, ItemStack.EMPTY);
 			return;
@@ -358,11 +416,12 @@ public class CraftingJob {
 				if (step.remaining <= 0) break;
 				if (!prov.hasPattern(step.pattern)) continue;
 				anyProvider = true;
-				Dispatch d = prov.dispatch(step.pattern, net, available, step.remaining);
+				Dispatch d = prov.dispatch(step.pattern, net, available, step.remaining, uid);
 				DispatchResult r = d.result();
 				if (d.ok()) {
 					long n = Math.min(d.crafts(), step.remaining);
 					step.remaining -= n;
+					if (step.inFlight <= 0) step.flightSince = level != null ? level.getGameTime() : 0;
 					step.inFlight += n;
 					d.consumed().forEach(this::unreserve);
 					progressed = stepProgressed = true;
@@ -435,6 +494,7 @@ public class CraftingJob {
 			long crafts = s.partial / per;
 			s.partial -= crafts * per;
 			s.inFlight -= crafts;
+			if (s.inFlight <= 0) s.flightSince = Long.MAX_VALUE;
 		}
 		if (used > 0) {
 			tracked = true;
@@ -442,6 +502,22 @@ public class CraftingJob {
 			if (!key.equals(new ItemKey(target)) && needsLater(key)) reserved.merge(key, used, Long::sum);
 		}
 		return used;
+	}
+
+	/** Since when this job waits for results of {@code key} (oldest craft in flight), {@link Long#MAX_VALUE} if it does not. */
+	public long waitingSince(ItemKey key) {
+		long since = Long.MAX_VALUE;
+		for (Step s : steps) {
+			if (s.inFlight <= 0) continue;
+			ItemStack primary = s.pattern.primaryOutput();
+			if (!primary.isEmpty() && key.equals(new ItemKey(primary))) since = Math.min(since, s.flightSince == Long.MAX_VALUE ? 0 : s.flightSince);
+		}
+		return since;
+	}
+
+	/** Are crafts of this job still inside machines? */
+	public boolean hasInFlight() {
+		return steps.stream().anyMatch(s -> s.inFlight > 0);
 	}
 
 	private boolean needsLater(ItemKey key) {
@@ -491,7 +567,12 @@ public class CraftingJob {
 			reserved.clear();
 			return;
 		}
+		boolean inMachines = hasInFlight();
 		finish(State.CANCELLED);
+		// Inputs still waiting in crafters/machines go back to the network (results of crafts already running are not credited any more)
+		if (inMachines && TsAutocraftConfig.get().returnInputsOnCancel && level != null && !level.isClientSide() && ownerPos != null) {
+			eu.sytxlabs.tsautocraft.network.TerminalCrafting.returnInputs(level, ownerPos, uid);
+		}
 	}
 
 	public State state() {
@@ -530,7 +611,7 @@ public class CraftingJob {
 		for (Step s : steps) {
 			sv.add(new StepView(s.pattern.primaryOutput().copyWithCount(1), s.total - s.remaining - (tracked ? s.inFlight : 0), s.total, s.reason.ordinal(), s.reasonItem, s.need, s.have, java.util.Optional.ofNullable(s.provider), java.util.Optional.ofNullable(s.providerName)));
 		}
-		return new JobView(uid, target, amount, doneCrafts(), totalCrafts(), state.ordinal(), reason.ordinal(), reasonItem, requester, sv, priority, paused);
+		return new JobView(uid, target, amount, doneCrafts(), totalCrafts(), state.ordinal(), reason.ordinal(), reasonItem, requester, sv, priority, paused, etaSeconds());
 	}
 
 	/** Progress of one step: crafts done of total, plus why it is stuck (missing input: need per craft / usable). */
@@ -538,8 +619,8 @@ public class CraftingJob {
 		public static final Codec<StepView> CODEC = RecordCodecBuilder.create(i -> i.group(ItemStack.OPTIONAL_CODEC.fieldOf("o").forGetter(StepView::output), Codec.LONG.fieldOf("d").forGetter(StepView::done), Codec.LONG.fieldOf("n").forGetter(StepView::total), Codec.INT.optionalFieldOf("r", 0).forGetter(StepView::reason), ItemStack.OPTIONAL_CODEC.optionalFieldOf("ri", ItemStack.EMPTY).forGetter(StepView::reasonItem), Codec.LONG.optionalFieldOf("nd", 0L).forGetter(StepView::need), Codec.LONG.optionalFieldOf("hv", 0L).forGetter(StepView::have), BlockPos.CODEC.optionalFieldOf("p").forGetter(StepView::provider), net.minecraft.network.chat.ComponentSerialization.CODEC.optionalFieldOf("pn").forGetter(StepView::providerName)).apply(i, StepView::new));
 	}
 
-	public record JobView(int id, ItemStack target, long amount, long done, long total, int state, int reason, ItemStack reasonItem, boolean requester, List<StepView> steps, int priority, boolean paused) {
-		public static final Codec<JobView> CODEC = RecordCodecBuilder.create(i -> i.group(Codec.INT.fieldOf("id").forGetter(JobView::id), ItemStack.OPTIONAL_CODEC.fieldOf("t").forGetter(JobView::target), Codec.LONG.fieldOf("a").forGetter(JobView::amount), Codec.LONG.fieldOf("d").forGetter(JobView::done), Codec.LONG.fieldOf("n").forGetter(JobView::total), Codec.INT.fieldOf("s").forGetter(JobView::state), Codec.INT.fieldOf("r").forGetter(JobView::reason), ItemStack.OPTIONAL_CODEC.fieldOf("ri").forGetter(JobView::reasonItem), Codec.BOOL.optionalFieldOf("rq", false).forGetter(JobView::requester), StepView.CODEC.listOf().optionalFieldOf("st", List.of()).forGetter(JobView::steps), Codec.INT.optionalFieldOf("pr", PRIORITY_NORMAL).forGetter(JobView::priority), Codec.BOOL.optionalFieldOf("pa", false).forGetter(JobView::paused)).apply(i, JobView::new));
+	public record JobView(int id, ItemStack target, long amount, long done, long total, int state, int reason, ItemStack reasonItem, boolean requester, List<StepView> steps, int priority, boolean paused, long eta) {
+		public static final Codec<JobView> CODEC = RecordCodecBuilder.create(i -> i.group(Codec.INT.fieldOf("id").forGetter(JobView::id), ItemStack.OPTIONAL_CODEC.fieldOf("t").forGetter(JobView::target), Codec.LONG.fieldOf("a").forGetter(JobView::amount), Codec.LONG.fieldOf("d").forGetter(JobView::done), Codec.LONG.fieldOf("n").forGetter(JobView::total), Codec.INT.fieldOf("s").forGetter(JobView::state), Codec.INT.fieldOf("r").forGetter(JobView::reason), ItemStack.OPTIONAL_CODEC.fieldOf("ri").forGetter(JobView::reasonItem), Codec.BOOL.optionalFieldOf("rq", false).forGetter(JobView::requester), StepView.CODEC.listOf().optionalFieldOf("st", List.of()).forGetter(JobView::steps), Codec.INT.optionalFieldOf("pr", PRIORITY_NORMAL).forGetter(JobView::priority), Codec.BOOL.optionalFieldOf("pa", false).forGetter(JobView::paused), Codec.LONG.optionalFieldOf("eta", -1L).forGetter(JobView::eta)).apply(i, JobView::new));
 	}
 	//endregion
 }

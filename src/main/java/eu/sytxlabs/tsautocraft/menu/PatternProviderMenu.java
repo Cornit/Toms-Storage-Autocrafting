@@ -30,7 +30,7 @@ import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
  * Slot order: 0-35 patterns, 36-71 player inventory, 72-75 upgrades.
  */
 public class PatternProviderMenu extends AbstractContainerMenu implements IDataReceiver {
-	public static final int WIDTH = 176, HEIGHT = 207, GRID_Y = 18, PLAYER_Y = 125;
+	public static final int WIDTH = 176, HEIGHT = 225, GRID_Y = 18, PLAYER_Y = 143;
 	public static final int PLAYER = PatternProviderBlockEntity.SLOTS, UPGRADES = PLAYER + 36;
 
 	private final PatternProviderBlockEntity be;
@@ -39,6 +39,8 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 	private final Container upgrades;
 	public boolean blocking = true;
 	public boolean substitutes;
+	public PatternProviderBlockEntity.LockMode lockMode = PatternProviderBlockEntity.LockMode.OFF;
+	public int priority;
 
 	public PatternProviderMenu(int id, Inventory inv) {
 		this(id, inv, null);
@@ -98,6 +100,28 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 				substitutes = value != 0;
 			}
 		});
+		addDataSlot(new DataSlot() {
+			@Override
+			public int get() {
+				return be != null ? be.getLockMode().ordinal() : 0;
+			}
+
+			@Override
+			public void set(int value) {
+				lockMode = PatternProviderBlockEntity.LockMode.byId(value);
+			}
+		});
+		addDataSlot(new DataSlot() {
+			@Override
+			public int get() {
+				return be != null ? be.getPriority() : 0;
+			}
+
+			@Override
+			public void set(int value) {
+				priority = (short) value; // data slots are synced as shorts
+			}
+		});
 	}
 
 	/** Pattern slots usable with the installed Capacity Upgrades. */
@@ -113,13 +137,24 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		return true;
 	}
 
-	/** 0 = blocking mode, 1 = substitutes for JEI-encoded patterns. */
+	public static final int BTN_BLOCKING = 0, BTN_SUBSTITUTES = 1, BTN_LOCK_NEXT = 2, BTN_LOCK_PREV = 3, BTN_PRIO_DOWN = 4, BTN_PRIO_UP = 5, BTN_PRIO_DOWN_10 = 6, BTN_PRIO_UP_10 = 7;
+
+	/** 0 = blocking mode, 1 = substitutes for JEI-encoded patterns, 2/3 = lock mode next/previous, 4-7 = priority -1/+1/-10/+10. */
 	@Override
 	public boolean clickMenuButton(Player player, int id) {
 		if (be == null) return false;
-		if (id == 0) be.setBlocking(!be.isBlocking());
-		else if (id == 1) be.setSubstitutes(!be.isSubstitutes());
-		else return false;
+		switch (id) {
+			case BTN_BLOCKING -> be.setBlocking(!be.isBlocking());
+			case BTN_SUBSTITUTES -> be.setSubstitutes(!be.isSubstitutes());
+			case BTN_LOCK_NEXT, BTN_LOCK_PREV -> be.cycleLockMode(id == BTN_LOCK_PREV);
+			case BTN_PRIO_DOWN -> be.setPriority(be.getPriority() - 1);
+			case BTN_PRIO_UP -> be.setPriority(be.getPriority() + 1);
+			case BTN_PRIO_DOWN_10 -> be.setPriority(be.getPriority() - 10);
+			case BTN_PRIO_UP_10 -> be.setPriority(be.getPriority() + 10);
+			default -> {
+				return false;
+			}
+		}
 		return true;
 	}
 

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IcI",
+    "QRQ",
+    "IcI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "c": "toms_storage:inventory_cable",
+    "Q": "minecraft:comparator",
+    "R": "tsautocraft:requester"
+  },
+  "result": {
+    "id": "tsautocraft:level_maintainer",
+    "count": 1
+  }
+}

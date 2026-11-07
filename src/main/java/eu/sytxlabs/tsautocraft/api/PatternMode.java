@@ -47,6 +47,19 @@ public interface PatternMode {
 		return false;
 	}
 
+	/** Can grid position {@code index} (0-8) of the Pattern Terminal be used in this mode? Disabled positions are hidden and stay empty. */
+	default boolean gridSlotEnabled(int index) {
+		return true;
+	}
+
+	/**
+	 * Is input {@code index} of the pattern only delivered when the machine needs it (e.g. fuel)? Such inputs are not
+	 * planned or reserved per craft ({@link PatternData#inputTotals()} leaves them out); the mode pulls them when needed.
+	 */
+	default boolean optionalInput(PatternData d, int index) {
+		return false;
+	}
+
 	/** Outputs for the current grid ({@link #fixedInputs()} modes only), empty list if the grid is no valid recipe. */
 	default List<ItemStack> computeOutputs(Level level, List<ItemStack> grid) {
 		return List.of();
@@ -125,6 +138,11 @@ public interface PatternMode {
 
 		/** Puts items back into the network; whatever does not fit is buffered by the provider. */
 		void giveBack(ItemStack stack);
+
+		/** Puts the stacks of a {@link #pull} back that could not be delivered after all; they no longer count as used. */
+		default void undoPull(List<ItemStack> got) {
+			got.forEach(this::giveBack);
+		}
 
 		/** The provider block entity (the built-in modes use its internals). */
 		Object provider();

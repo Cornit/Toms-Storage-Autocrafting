@@ -19,6 +19,7 @@ public final class PatternModes {
 	public static final PatternMode PROCESSING = register(BuiltinPatternModes.PROCESSING);
 	public static final PatternMode SMELTING = register(BuiltinPatternModes.SMELTING);
 	public static final PatternMode FLUID = register(BuiltinPatternModes.FLUID);
+	public static final PatternMode BREWING = register(BuiltinPatternModes.BREWING);
 
 	private PatternModes() {}
 

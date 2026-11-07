@@ -1,8 +1,11 @@
 package eu.sytxlabs.tsautocraft.blockentity;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import net.minecraft.core.BlockPos;
@@ -29,6 +32,7 @@ import eu.sytxlabs.tsautocraft.TsAutocraftConfig;
 import eu.sytxlabs.tsautocraft.api.JobOwner;
 import eu.sytxlabs.tsautocraft.api.Upgrades;
 import eu.sytxlabs.tsautocraft.job.CraftingJob;
+import eu.sytxlabs.tsautocraft.job.JobHistoryEntry;
 import eu.sytxlabs.tsautocraft.job.JobRunner;
 import eu.sytxlabs.tsautocraft.job.JobScheduler;
 import eu.sytxlabs.tsautocraft.job.JobText;
@@ -61,6 +65,13 @@ public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity impleme
 	private final List<CraftingJob> jobs = new ArrayList<>();
 	private final UpgradeContainer upgrades = new UpgradeContainer(UPGRADE_SLOTS, Upgrades.AUTOCRAFTING_TERMINAL, this::setChanged);
 	private int nextId = 1;
+	/** Finished jobs of the network, newest first (config {@code jobHistorySize}). */
+	private final List<JobHistoryEntry> history = new ArrayList<>();
+	/** Running jobs of other owners on the network, watched until they finish (uid -> job). */
+	private final Map<Integer, Watched> watched = new HashMap<>();
+	private static final int HISTORY_SCAN_TICKS = 20;
+
+	private record Watched(CraftingJob job, boolean automatic) {}
 
 	public AutocraftingTerminalBlockEntity(BlockPos pos, BlockState state) {
 		super(ModContent.AUTOCRAFTING_TERMINAL_BE, pos, state);
@@ -88,9 +99,54 @@ public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity impleme
 	@Override
 	public void updateServer() {
 		if (level == null) return;
+		for (CraftingJob j : jobs) if (j.isFinished()) addHistory(j, false);
 		if (jobs.removeIf(CraftingJob::isFinished)) setChanged();
 		if (!jobs.isEmpty() && JobRunner.due(level)) JobScheduler.submit(this);
+		if (level.getGameTime() % HISTORY_SCAN_TICKS == 0) scanOtherJobs();
 	}
+
+	//region History
+
+	/** Records finished jobs of the other job owners on the network (several terminals on one network each keep the network's history). */
+	private void scanOtherJobs() {
+		if (TsAutocraftConfig.get().jobHistorySize <= 0) {
+			watched.clear();
+			return;
+		}
+		watched.values().removeIf(w -> {
+			if (!w.job().isFinished()) return false;
+			addHistory(w.job(), w.automatic());
+			return true;
+		});
+		Set<Integer> alive = new HashSet<>();
+		for (JobOwner o : TerminalCrafting.jobOwners(level, worldPosition)) {
+			if (o == this) continue;
+			for (CraftingJob j : o.activeJobs()) {
+				alive.add(j.uid);
+				watched.putIfAbsent(j.uid, new Watched(j, o.automatic()));
+			}
+		}
+		watched.keySet().retainAll(alive);
+	}
+
+	private void addHistory(CraftingJob job, boolean automatic) {
+		int max = TsAutocraftConfig.get().jobHistorySize;
+		if (max <= 0 || level == null) return;
+		history.addFirst(JobHistoryEntry.of(job, level.getGameTime(), automatic));
+		while (history.size() > max) history.removeLast();
+		setChanged();
+	}
+
+	/** Finished jobs, newest first. */
+	public List<JobHistoryEntry> history() {
+		return history;
+	}
+
+	public void clearHistory() {
+		history.clear();
+		setChanged();
+	}
+	//endregion
 
 	@Override
 	public void tickJob(CraftingJob job) {
@@ -221,6 +277,8 @@ public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity impleme
 		for (CraftingJob j : jobs) if (!j.isFinished()) list.add(j);
 		out.putInt("NextId", nextId);
 		upgrades.save(out, "Upgrades");
+		var hist = out.list("History", JobHistoryEntry.CODEC);
+		history.forEach(hist::add);
 	}
 
 	@Override
@@ -231,6 +289,8 @@ public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity impleme
 		in.listOrEmpty("Jobs", CraftingJob.CODEC).stream().forEach(jobs::add);
 		nextId = in.getIntOr("NextId", 1);
 		upgrades.load(in, "Upgrades");
+		history.clear();
+		in.listOrEmpty("History", JobHistoryEntry.CODEC).stream().forEach(history::add);
 	}
 
 	@Override

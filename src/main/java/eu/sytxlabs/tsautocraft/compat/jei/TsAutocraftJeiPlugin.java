@@ -31,8 +31,10 @@ import eu.sytxlabs.tsautocraft.api.PatternMode;
 import eu.sytxlabs.tsautocraft.api.PatternModes;
 import eu.sytxlabs.tsautocraft.client.CraftingEmitterScreen;
 import eu.sytxlabs.tsautocraft.client.GhostTargets;
+import eu.sytxlabs.tsautocraft.client.LevelMaintainerScreen;
 import eu.sytxlabs.tsautocraft.client.PatternTerminalScreen;
 import eu.sytxlabs.tsautocraft.client.RequesterScreen;
+import eu.sytxlabs.tsautocraft.menu.LevelMaintainerMenu;
 import eu.sytxlabs.tsautocraft.menu.MenuUtil;
 import eu.sytxlabs.tsautocraft.menu.PatternProviderMenu;
 import eu.sytxlabs.tsautocraft.menu.PatternTerminalMenu;
@@ -41,7 +43,7 @@ import eu.sytxlabs.tsautocraft.menu.RequesterMenu;
 /**
  * Optional JEI integration (entrypoint {@code jei_mod_plugin}, only loaded when JEI is installed): the "+" button copies any recipe into the Pattern Terminal
  * (crafting recipes -> crafting mode with the grid positions, furnace recipes -> smelting mode, everything else -> processing mode with amounts),
- * and ingredients can be dragged onto the ghost slots of the Pattern Terminal, the Requester and the Crafting Emitter.
+ * and ingredients can be dragged onto the ghost slots of the Pattern Terminal, the Requester, the Level Maintainer and the Crafting Emitter.
  */
 @JeiPlugin
 public class TsAutocraftJeiPlugin implements IModPlugin {
@@ -55,6 +57,7 @@ public class TsAutocraftJeiPlugin implements IModPlugin {
 	public void registerRecipeTransferHandlers(IRecipeTransferRegistration registration) {
 		registration.addUniversalRecipeTransferHandler(new PatternTransfer(registration.getTransferHelper()));
 		registration.addUniversalRecipeTransferHandler(new RequesterTransfer(registration.getTransferHelper()));
+		registration.addUniversalRecipeTransferHandler(new MaintainerTransfer(registration.getTransferHelper()));
 		registration.addUniversalRecipeTransferHandler(new ProviderTransfer(registration.getTransferHelper()));
 	}
 
@@ -82,10 +85,35 @@ public class TsAutocraftJeiPlugin implements IModPlugin {
 		}
 	}
 
+	/** "+" in the Level Maintainer: the recipe's (first) output becomes an entry; a new entry starts with one stack as threshold and batch. */
+	private record MaintainerTransfer(IRecipeTransferHandlerHelper helper) implements IUniversalRecipeTransferHandler<LevelMaintainerMenu> {
+
+		@Override
+		public Class<? extends LevelMaintainerMenu> getContainerClass() {
+			return LevelMaintainerMenu.class;
+		}
+
+		@Override
+		public Optional<MenuType<LevelMaintainerMenu>> getMenuType() {
+			return Optional.of(ModContent.LEVEL_MAINTAINER_MENU);
+		}
+
+		@Override
+		public IRecipeTransferError transferRecipe(LevelMaintainerMenu menu, Object recipe, IRecipeSlotsView slots, Player player, boolean maxTransfer, boolean doTransfer) {
+			ItemStack out = slots.getSlotViews(RecipeIngredientRole.OUTPUT).stream().map(TsAutocraftJeiPlugin::stackOf).filter(s -> !s.isEmpty()).findFirst().orElse(ItemStack.EMPTY);
+			if (out.isEmpty()) return helper.createUserErrorWithTooltip(Component.translatable("msg.tsautocraft.jei.no_items"));
+			if (menu.entryFor(out) < 0) return helper.createUserErrorWithTooltip(Component.translatable("msg.tsautocraft.jei.maintainer_full"));
+			if (!doTransfer) return null;
+			MenuUtil.sendToServer(player, o -> o.store("jei_req", ItemStack.CODEC, out.copyWithCount(1)));
+			return null;
+		}
+	}
+
 	@Override
 	public void registerGuiHandlers(IGuiHandlerRegistration registration) {
 		registration.addGhostIngredientHandler(PatternTerminalScreen.class, new GhostHandler<>());
 		registration.addGhostIngredientHandler(RequesterScreen.class, new GhostHandler<>());
+		registration.addGhostIngredientHandler(LevelMaintainerScreen.class, new GhostHandler<>());
 		registration.addGhostIngredientHandler(CraftingEmitterScreen.class, new GhostHandler<>());
 	}
 

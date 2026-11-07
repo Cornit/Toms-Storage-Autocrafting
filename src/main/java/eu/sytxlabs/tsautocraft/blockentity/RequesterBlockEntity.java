@@ -120,7 +120,7 @@ public class RequesterBlockEntity extends PlatformBlockEntity implements Tickabl
 			}
 
 			if (job != null && runJobs) {
-				if (job.state() == CraftingJob.State.RUNNING && job.stalledTicks() > TsAutocraftConfig.get().requesterReplanSeconds * 20 && (job.reason() == CraftingJob.Reason.WAITING_ITEMS || job.reason() == CraftingJob.Reason.NO_PROVIDER)) {
+				if (job.state() == CraftingJob.State.RUNNING && !job.hasInFlight() && job.stalledTicks() > TsAutocraftConfig.get().requesterReplanSeconds * 20 && (job.reason() == CraftingJob.Reason.WAITING_ITEMS || job.reason() == CraftingJob.Reason.NO_PROVIDER)) {
 					job.cancel();
 				}
 				if (job.isFinished()) {

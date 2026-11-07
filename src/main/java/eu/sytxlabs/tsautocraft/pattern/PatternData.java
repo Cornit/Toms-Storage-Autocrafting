@@ -38,7 +38,7 @@ import eu.sytxlabs.tsautocraft.util.ItemKey;
  * Counts are stored in {@link Entry#count()} (int), not in the ItemStack, because {@code ItemStack.CODEC} is limited to 99.
  */
 public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outputs) implements TooltipProvider {
-	public static final Identifier CRAFTING = TsAutocraft.id("crafting"), PROCESSING = TsAutocraft.id("processing"), SMELTING = TsAutocraft.id("smelting"), FLUID = TsAutocraft.id("fluid");
+	public static final Identifier CRAFTING = TsAutocraft.id("crafting"), PROCESSING = TsAutocraft.id("processing"), SMELTING = TsAutocraft.id("smelting"), FLUID = TsAutocraft.id("fluid"), BREWING = TsAutocraft.id("brewing");
 	public static final Codec<PatternData> CODEC = RecordCodecBuilder.create(i -> i.group(
 			Identifier.CODEC.optionalFieldOf("mode").forGetter(d -> Optional.of(d.mode())),
 			Codec.BOOL.optionalFieldOf("crafting", false).forGetter(PatternData::crafting),
@@ -131,8 +131,23 @@ public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outpu
 		return modeType().isValid(this);
 	}
 
+	/** Inputs used up per craft, without the mode's {@linkplain PatternMode#optionalInput optional inputs} (e.g. fuel). */
 	public Map<ItemKey, Long> inputTotals() {
-		return totals(inputs);
+		PatternMode m = modeType();
+		Map<ItemKey, Long> t = new LinkedHashMap<>();
+		for (int i = 0; i < inputs.size(); i++) {
+			Entry e = inputs.get(i);
+			if (!e.isEmpty() && !m.optionalInput(this, i)) t.merge(new ItemKey(e.item()), (long) e.count(), Long::sum);
+		}
+		return t;
+	}
+
+	/** Inputs only delivered when the machine needs them (e.g. fuel), see {@link PatternMode#optionalInput}. */
+	public List<Entry> optionalInputs() {
+		PatternMode m = modeType();
+		List<Entry> l = new ArrayList<>();
+		for (int i = 0; i < inputs.size(); i++) if (!inputs.get(i).isEmpty() && m.optionalInput(this, i)) l.add(inputs.get(i));
+		return l;
 	}
 
 	public Map<ItemKey, Long> outputTotals() {
@@ -174,6 +189,7 @@ public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outpu
 		}
 		tooltip.accept(Component.translatable("tooltip.tsautocraft.pattern.inputs").withStyle(ChatFormatting.GOLD));
 		inputTotals().forEach((k, c) -> tooltip.accept(entryLine(c, k.template())));
+		for (Entry e : optionalInputs()) tooltip.accept(Component.translatable("tooltip.tsautocraft.pattern.when_needed", e.item().getHoverName()).withStyle(ChatFormatting.GRAY));
 		if (hasSubstitutes()) substitutesTooltip(tooltip);
 	}
 

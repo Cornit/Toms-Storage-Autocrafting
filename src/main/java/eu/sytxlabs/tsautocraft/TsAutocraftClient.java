@@ -21,9 +21,11 @@ import com.tom.storagemod.client.UnbakedPaintedModel;
 import eu.sytxlabs.tsautocraft.client.AutocraftingTerminalScreen;
 import eu.sytxlabs.tsautocraft.client.CraftingEmitterScreen;
 import eu.sytxlabs.tsautocraft.client.IOScreen;
+import eu.sytxlabs.tsautocraft.client.PatternAccessTerminalScreen;
 import eu.sytxlabs.tsautocraft.client.PatternProviderScreen;
 import eu.sytxlabs.tsautocraft.client.PatternTerminalScreen;
 import eu.sytxlabs.tsautocraft.client.RequesterScreen;
+import eu.sytxlabs.tsautocraft.client.LevelMaintainerScreen;
 import eu.sytxlabs.tsautocraft.pattern.PatternItem;
 
 public class TsAutocraftClient implements ClientModInitializer {
@@ -35,9 +37,12 @@ public class TsAutocraftClient implements ClientModInitializer {
 		MenuScreens.register(ModContent.PATTERN_PROVIDER_MENU, PatternProviderScreen::new);
 		MenuScreens.register(ModContent.PATTERN_TERMINAL_MENU, PatternTerminalScreen::new);
 		MenuScreens.register(ModContent.AUTOCRAFTING_TERMINAL_MENU, AutocraftingTerminalScreen::new);
+		MenuScreens.register(ModContent.PATTERN_ACCESS_TERMINAL_MENU, PatternAccessTerminalScreen::new);
 		MenuScreens.register(ModContent.REQUESTER_MENU, RequesterScreen::new);
+		MenuScreens.register(ModContent.LEVEL_MAINTAINER_MENU, LevelMaintainerScreen::new);
 		MenuScreens.register(ModContent.CRAFTING_EMITTER_MENU, CraftingEmitterScreen::new);
 		PatternItem.shiftDown = () -> Minecraft.getInstance().hasShiftDown();
+		GuideBookItem.opener = () -> Minecraft.getInstance().gui.setScreen(new eu.sytxlabs.tsautocraft.client.GuideScreen());
 
 		ModelLoadingPlugin.register(new ModelLoadingPlugin() {
 			private final Set<BlockState> states = new HashSet<>();

@@ -1,5 +1,8 @@
 package eu.sytxlabs.tsautocraft.client;
 
+import java.util.List;
+import java.util.function.Consumer;
+
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -7,12 +10,16 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.ValueInput;
 
 import com.tom.storagemod.screen.AbstractStorageTerminalScreen;
 
 import eu.sytxlabs.tsautocraft.TsAutocraft;
 import eu.sytxlabs.tsautocraft.menu.PatternTerminalMenu;
+import eu.sytxlabs.tsautocraft.pattern.PatternData;
+import eu.sytxlabs.tsautocraft.pattern.PatternEncoder;
 
 public class PatternTerminalScreen extends AbstractStorageTerminalScreen<PatternTerminalMenu> {
 	private static final Identifier GUI = TsAutocraft.id("textures/gui/pattern_terminal.png");
@@ -21,6 +28,11 @@ public class PatternTerminalScreen extends AbstractStorageTerminalScreen<Pattern
 	private boolean shownSubst;
 	private Component message = Component.empty();
 	private int messageTicks;
+	/** x2, /2, x10, /10 right of the encoding area (free-amount modes only). */
+	private final Button[] scaleBtns = new Button[PatternTerminalMenu.SCALES.length];
+	/** Tooltip key last set per scale button, to update tooltips only when the reason changes. */
+	private final String[] scaleReasons = new String[PatternTerminalMenu.SCALES.length];
+	private static final int SCALE_X = 177, SCALE_W = 22, SCALE_H = 13;
 
 	public PatternTerminalScreen(PatternTerminalMenu menu, Inventory inv, Component title) {
 		super(menu, inv, title, 5, 194, 256, 7, 17);
@@ -50,7 +62,45 @@ public class PatternTerminalScreen extends AbstractStorageTerminalScreen<Pattern
 		substBtn = addRenderableWidget(Button.builder(substLabel(), b -> click(4)).bounds(leftPos + 150, y + 1, 20, 16).build());
 		shownSubst = menu.substitutes;
 		substBtn.setTooltip(substTooltip());
+		for (int i = 0; i < scaleBtns.length; i++) {
+			int[] f = PatternTerminalMenu.SCALES[i];
+			int id = PatternTerminalMenu.BTN_SCALE + i;
+			Component label = f[1] == 1 ? Component.translatable("button.tsautocraft.scale.mul", f[0]) : Component.translatable("button.tsautocraft.scale.div", f[1]);
+			scaleBtns[i] = addRenderableWidget(Button.builder(label, b -> click(id)).bounds(leftPos + SCALE_X, topPos + areaY() + 17 + i * (SCALE_H + 1), SCALE_W, SCALE_H).build());
+			scaleReasons[i] = null;
+		}
+		updateScaleButtons();
 		onPacket();
+	}
+
+	/** Shows the scale buttons only for free-amount modes; greys them out (with the reason as tooltip) when the result would be invalid. */
+	private void updateScaleButtons() {
+		boolean visible = !menu.outputsLocked();
+		List<ItemStack> stacks = visible ? menu.encodingStacks() : List.of();
+		boolean empty = stacks.stream().allMatch(ItemStack::isEmpty);
+		for (int i = 0; i < scaleBtns.length; i++) {
+			Button b = scaleBtns[i];
+			if (b == null) continue;
+			b.visible = visible;
+			if (!visible) continue;
+			int[] f = PatternTerminalMenu.SCALES[i];
+			boolean ok = PatternTerminalMenu.canScale(stacks, f[0], f[1]);
+			b.active = ok;
+			String reason = ok ? (f[1] == 1 ? "tooltip.tsautocraft.scale.mul" : "tooltip.tsautocraft.scale.div")
+					: empty ? "tooltip.tsautocraft.scale.empty"
+					: f[1] == 1 ? "tooltip.tsautocraft.scale.too_big" : "tooltip.tsautocraft.scale.not_divisible";
+			if (!reason.equals(scaleReasons[i])) {
+				scaleReasons[i] = reason;
+				Object arg = reason.endsWith("too_big") ? PatternTerminalMenu.MAX_PROCESSING_COUNT : Math.max(f[0], f[1]);
+				b.setTooltip(Tooltip.create(Component.translatable(reason, arg)));
+			}
+		}
+	}
+
+	@Override
+	public void getExclusionAreas(Consumer<Box> consumer) {
+		super.getExclusionAreas(consumer);
+		if (!menu.outputsLocked()) consumer.accept(new Box(leftPos + SCALE_X, topPos + areaY() + 17, SCALE_W, scaleBtns.length * (SCALE_H + 1)));
 	}
 
 	private Component substLabel() {
@@ -99,8 +149,52 @@ public class PatternTerminalScreen extends AbstractStorageTerminalScreen<Pattern
 			substBtn.setTooltip(substTooltip());
 		}
 		if (messageTicks > 0) messageTicks--;
+		updateScaleButtons();
 		super.extractRenderState(graphics, mouseX, mouseY, a);
 		if (modeBtn != null) graphics.item(menu.modeType().icon(), modeBtn.getX() + 1, modeBtn.getY() + 1);
+		extractGridLayout(graphics, mouseX, mouseY);
+	}
+
+	/**
+	 * Hides grid positions the mode does not use. Brewing: the grid looks like the brewing stand (fuel top left, reagent
+	 * top middle, bottles below, pipes in between) and empty positions explain themselves on hover.
+	 */
+	private void extractGridLayout(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		boolean brewing = PatternData.BREWING.equals(menu.modeType().id());
+		for (int i = 0; i < 9; i++) {
+			if (menu.gridEnabled(PatternTerminalMenu.GRID + i)) continue;
+			Slot sl = menu.slots.get(PatternTerminalMenu.GRID + i);
+			g.fill(leftPos + sl.x - 1, topPos + sl.y - 1, leftPos + sl.x + 17, topPos + sl.y + 17, 0xFFC6C6C6);
+		}
+		if (!brewing) return;
+		Slot reagent = menu.slots.get(PatternTerminalMenu.GRID + PatternEncoder.BREW_REAGENT);
+		Slot left = menu.slots.get(PatternTerminalMenu.GRID + PatternEncoder.BREW_FIRST_BOTTLE);
+		Slot right = menu.slots.get(PatternTerminalMenu.GRID + 8);
+		int cx = leftPos + reagent.x + 7, top = topPos + reagent.y + 17, bottom = topPos + left.y - 1, mid = (top + bottom) / 2;
+		int lx = leftPos + left.x + 7, rx = leftPos + right.x + 7;
+		// pipes: reagent down, split to the three bottles
+		pipe(g, cx, top, cx + 2, mid + 2);
+		pipe(g, lx, mid, rx + 2, mid + 2);
+		pipe(g, lx, mid, lx + 2, bottom);
+		pipe(g, cx, mid, cx + 2, bottom);
+		pipe(g, rx, mid, rx + 2, bottom);
+		// brewing progress arrow right of the reagent
+		Slot arrow = menu.slots.get(PatternTerminalMenu.GRID + 2);
+		int ax = leftPos + arrow.x + 7, ay = topPos + arrow.y;
+		g.fill(ax, ay + 1, ax + 2, ay + 13, 0xFF555555);
+		for (int k = 0; k < 4; k++) g.fill(ax - 3 + k, ay + 10 + k, ax + 5 - k, ay + 11 + k, 0xFF555555);
+		// what goes where
+		if (hoveredSlot != null && !hoveredSlot.hasItem()) {
+			int idx = menu.slots.indexOf(hoveredSlot) - PatternTerminalMenu.GRID;
+			String key = idx == PatternEncoder.BREW_FUEL ? "tooltip.tsautocraft.brewing.fuel" : idx == PatternEncoder.BREW_REAGENT ? "tooltip.tsautocraft.brewing.reagent"
+					: idx >= PatternEncoder.BREW_FIRST_BOTTLE && idx < 9 ? "tooltip.tsautocraft.brewing.bottle" : null;
+			if (key != null) g.setTooltipForNextFrame(font, Component.translatable(key), mouseX, mouseY);
+		}
+	}
+
+	private static void pipe(GuiGraphicsExtractor g, int x1, int y1, int x2, int y2) {
+		g.fill(x1, y1, x2, y2, 0xFF555555);
+		g.fill(x1 - 1, y1, x1, y2, 0xFFFFFFFF);
 	}
 
 	@Override

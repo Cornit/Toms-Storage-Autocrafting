@@ -41,8 +41,9 @@ public class TsAutocraftModMenu implements ModMenuApi {
 	}
 
 	private static String category(String field) {
-		if (field.startsWith("crafter") || field.equals("enableDisabledCrafterSlots")) return "crafter";
+		if (field.startsWith("crafter") || field.startsWith("provider") || field.equals("enableDisabledCrafterSlots")) return "crafter";
 		if (field.startsWith("requester")) return "requester";
+		if (field.startsWith("maintainer")) return "maintainer";
 		if (field.startsWith("io") || field.startsWith("craftables")) return "io";
 		return "jobs";
 	}

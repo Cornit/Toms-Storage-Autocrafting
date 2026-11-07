@@ -75,6 +75,32 @@ public final class PlannerSelfTest {
 			// Ladder: 7 sticks = 2 stick crafts = 4 planks; chest 8 planks -> 12 planks = 3 crafts
 			check("merged planks=3 (got " + plankCrafts + ")", plankCrafts == 3L);
 		}
+		// 9) Recipe tree: chest <- 8 planks (2 crafts) <- 2 logs from stock; fallback leaves no stale children
+		{
+			var r = planner(Map.of("log", 64L), planks, chest).plan("chest", 1, false, true);
+			var root = r.tree();
+			check("tree root", root != null && root.item.equals("chest") && root.crafts == 1 && root.children.size() == 1);
+			var pl = root.children.getFirst();
+			check("tree planks", pl.item.equals("planks") && pl.amount == 8 && pl.crafts == 2 && pl.children.size() == 1);
+			var log = pl.children.getFirst();
+			check("tree logs from stock", log.item.equals("log") && log.fromStock == 2 && log.crafts == 0 && log.missing == 0);
+			Pat coalFromOre = pat("coal_ore", Map.of("coal_ore", 1L), Map.of("coal", 1L));
+			var f = planner(Map.of("log", 5L), coalFromOre, charcoal).plan("coal", 3, false, true).tree();
+			check("tree fallback", f.pattern == charcoal && f.children.size() == 1 && f.children.getFirst().item.equals("log") && f.missing == 0);
+			var m = planner(Map.of(), planks, chest).plan("chest", 1, false, true).tree();
+			check("tree missing", m.children.getFirst().children.getFirst().missing == 2);
+			check("no tree by default", planner(Map.of(), planks, chest).plan("chest", 1, false).tree() == null);
+		}
+		// 10) A byproduct adds to the real stock of that item (it must not replace it)
+		{
+			Pat x = pat("x", Map.of("log", 1L), Map.of("x", 1L, "s", 1L));
+			Map<String, Long> boxIn = new LinkedHashMap<>();
+			boxIn.put("x", 1L); // planned first: its byproduct "s" lands in virtual storage before "s" is looked up
+			boxIn.put("s", 5L);
+			Pat box = pat("box", boxIn, Map.of("box", 1L));
+			var r = planner(Map.of("log", 1L, "s", 5L), x, box).plan("box", 1, false);
+			check("byproduct on top of stock", r.isComplete() && stepsOf(r).equals(Map.of("x", 1L, "box", 1L)));
+		}
 
 		if (failures > 0) {
 			System.err.println(failures + " test(s) failed");

@@ -102,11 +102,10 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 
 	public void setMode(PatternMode mode) {
 		this.mode = mode;
-		if (isFixedMode()) {
-			for (int i = 0; i < 9; i++) {
-				ItemStack st = grid.getItem(i);
-				if (st.getCount() > 1) grid.setItem(i, st.copyWithCount(1));
-			}
+		for (int i = 0; i < 9; i++) {
+			ItemStack st = grid.getItem(i);
+			if (!mode.gridSlotEnabled(i)) grid.setItem(i, ItemStack.EMPTY); // position not used by this mode
+			else if (isFixedMode() && st.getCount() > 1) grid.setItem(i, st.copyWithCount(1));
 		}
 		onGridChanged();
 	}
@@ -181,7 +180,7 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 			outputs.clearContent();
 			for (int i = 0; i < 9 && i < in.size(); i++) {
 				ItemStack s = in.get(i);
-				if (s.isEmpty()) continue;
+				if (s.isEmpty() || !mode.gridSlotEnabled(i)) continue;
 				grid.setItem(i, s.copyWithCount(fixed ? 1 : Math.clamp(s.getCount(), 1, PatternTerminalMenu.MAX_PROCESSING_COUNT)));
 			}
 			if (!fixed) {
@@ -194,6 +193,31 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 			loading = false;
 		}
 		onGridChanged();
+	}
+
+	/**
+	 * Multiplies all grid and output amounts by {@code mul / div} (modes with free amounts only). Does nothing and returns
+	 * false if a new amount would not be a whole number in 1..{@link PatternTerminalMenu#MAX_PROCESSING_COUNT}.
+	 */
+	public boolean scaleAmounts(int mul, int div) {
+		if (isFixedMode()) return false;
+		List<ItemStack> all = gridItems();
+		for (int i = 0; i < 3; i++) all.add(outputs.getItem(i));
+		if (!PatternTerminalMenu.canScale(all, mul, div)) return false;
+		loading = true;
+		try {
+			for (int i = 0; i < 9; i++) scaleSlot(grid, i, mul, div);
+			for (int i = 0; i < 3; i++) scaleSlot(outputs, i, mul, div);
+		} finally {
+			loading = false;
+		}
+		onGridChanged();
+		return true;
+	}
+
+	private static void scaleSlot(GhostContainer c, int slot, int mul, int div) {
+		ItemStack st = c.getItem(slot);
+		if (!st.isEmpty()) c.setItem(slot, st.copyWithCount((int) ((long) st.getCount() * mul / div)));
 	}
 
 	public void clearGrid() {

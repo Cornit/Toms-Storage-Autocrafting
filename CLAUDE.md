@@ -10,7 +10,6 @@ The user (Shaun) talks German; reply in German.
 - JDK 25, Gradle 9.4.1 wrapper, Loom 1.16 (26.x is unobfuscated: plain `implementation`, no mappings).
 - `gradlew build`, `gradlew runClient`, `gradlew plannerTest` (Minecraft-free planner self test, must print "All planner tests passed").
 - Runtime log: `run/logs/latest.log`.
-- `_to_delete/` holds stale files from the initial file transfer; safe to delete, ignored by git.
 
 ## Status (2026-11-02)
 
@@ -20,6 +19,9 @@ The user (Shaun) talks German; reply in German.
   machine profiles, planner hooks, fluid pattern mode, Exporter/Importer modes, stackable upgrades, Redstone Upgrade, anvil
   names, wireless access, Jade plugin, Mod Menu config screen, full-block (omni) Pattern Provider, Crafting Emitter variants
   (full block, connector, framed), tooltips via components.
+- 0.3.0 (2026-11-08, nothing tested in game): bug fixes from a review, Pattern Access Terminal, Level Maintainer, brewing
+  mode, provider lock mode/priority, return inputs on cancel, job history/ETA/recipe tree, JEI "craft missing", pattern
+  multiplier, guide book (see CHANGELOG.md).
 - Next: test in game (job list buttons/tooltips, Jade, upgrades stacking, IO modes + ghost/real filters, Redstone Upgrade on
   IO and in front of a crafter, omni provider with several crafters, fluid pattern + Importer filling, brewing stand profile,
   wireless terminals, config screen with `-PwithModMenu`, framed directional emitter).
@@ -78,8 +80,19 @@ The user (Shaun) talks German; reply in German.
   redstone signal are per side (`lastCrafter`, `signalTicks`): a pulse only reaches the machine that was just filled.
 - Pattern Provider: crafting patterns fill `minecraft:crafter` slots 0-8 in pattern order (shifted if needed), trigger per config;
   processing patterns insert all-or-nothing, optional blocking mode. Results return via Importer.
+- Provider lock modes (`PatternProviderBlockEntity.LockMode`, GUI 2nd button row, Jade, saved): OFF | UNTIL_RESULT (per side
+  `awaitKey/Count/Since` = primary output of the last delivery; `TerminalCrafting.itemsArrived` -> `providerResults` ->
+  `CraftingProvider.resultsArrived`, FIFO by `awaitingSince`, independent of jobs; any Importer arrival of that item counts;
+  timeout `providerLockTimeoutSeconds`) | REDSTONE_HIGH/LOW (`hasNeighborSignal`). Provider priority (-999..999, GUI -/+,
+  shift = 10): `NetworkLink.providers` sorts by `providerPriority()` desc (stable) -> dispatch order and planner pattern order.
+- Cancel cleanup (`returnInputsOnCancel`): `CraftingJob.cancel` -> `TerminalCrafting.returnInputs(uid)` ->
+  `CraftingProvider.returnInputs`. Jobs dispatch with `dispatch(..., uid)`; the provider remembers per side the job whose
+  deliveries filled it since it last held no pattern inputs (`sideJob`, runtime only: lost on restart, -1 = mixed jobs).
+  Returns: crafter contents if they match the pattern and no craft tick is scheduled (+ `pendingTriggers` cleared), furnace
+  input slot, processing: full input sets extractable via the insert face (not with machine profiles, fluid, brewing,
+  third-party modes). Partly consumed sets stay; results of running crafts are no longer credited to the cancelled job.
 - Pattern modes are an API: `api/PatternMode` + `api/PatternModes.register(...)` (built-ins in `pattern/BuiltinPatternModes`:
-  crafting, processing, smelting, fluid). `PatternData.mode` is the mode id (old patterns: `crafting`/`smelting` flags in the codec).
+  crafting, processing, smelting, fluid, brewing; only modes for blocks that can be automated, no stonecutter/smithing). `PatternData.mode` is the mode id (old patterns: `crafting`/`smelting` flags in the codec).
   A mode encodes (`encode`, `computeOutputs`), delivers (`dispatch(DispatchContext, pattern)`, items only via `ctx.pull`)
   and claims JEI recipes / REI categories. Menu sync by registry index; the Pattern Terminal button shows `mode.icon()`.
 - Job execution: `api/CraftingProvider` (Pattern Provider, Crafting Emitter) and `api/JobOwner` (Autocrafting Terminal,
@@ -93,9 +106,14 @@ The user (Shaun) talks German; reply in German.
 - Public API package `api/` (+ `TsAutocraftApi.VERSION`, `gradlew build` also makes `-api.jar` with the data types it uses):
   `CraftingEvents` (PLAN_CREATED, JOB_STARTED, STEP_DISPATCHED, JOB_FINISHED), `Upgrades` (host -> allowed items + max count;
   `UpgradeHost`), `MachineProfiles` (datapack `data/<ns>/tsautocraft/machines/*.json`: `blocks`, `sides`, `redstone_pulse`,
-  `blocking`; built-in brewing stand), `PlannerHooks` (pattern order, craftable/substitute filters; item tags
+  `blocking`, `routes` [per input by item/#tag/`fuel` cooking|brewing|any (item components `COOKING_FUEL`/`BREWING_FUEL`)/pattern position -> sides, first match wins], `cooldown` [ticks between deliveries, checked per side in the provider]; built-in furnace family, brewing stand, dispenser/dropper; smelting/brewing pattern modes set slots directly and ignore profiles), `PlannerHooks` (pattern order, craftable/substitute filters; item tags
   `tsautocraft:not_autocraftable`, `tsautocraft:no_substitute`), `IOMode`/`IOModes` (Exporter/Importer: round robin,
   priority, random, blacklist [Importer]).
+- Brewing mode (26.3 brewing is data-driven: `RecipeType.BREWING`, `BrewingRecipe`, `BrewingInput(input, reagent)`): positional 9
+  inputs like the brewing stand GUI (`PatternEncoder.BREW_FUEL`=0, `BREW_REAGENT`=1, bottles 6-8; other positions disabled via
+  `PatternMode.gridSlotEnabled`, drawn as a brewing stand in `PatternTerminalScreen.extractGridLayout`). Fuel is an
+  `optionalInput` (left out of `inputTotals`/planner/reservations; delivered from unreserved stock only into an empty fuel slot).
+  JEI/REI "+" encodes 3 bottles; the Importer skips a brewing stand while slot 3 holds a reagent.
 - Fluids: Tom's has none, so they travel as filled containers. Fluid pattern mode empties containers into the target's
   `FluidStorage`, empties go back; Importer with a filled container as filter fills empty containers from the network
   (`util/FluidUtil`).
@@ -117,7 +135,29 @@ The user (Shaun) talks German; reply in German.
   `IOScreen` only with the upgrade; Pattern Provider: `ctx.redstonePulse(crafterPulseTicks)` after every delivery).
 - Crafting Emitter (full block, signal on all sides; directional variant = `ConnectorNodeBlock`/framed with `emitsPulse`, signal only
   out of the front; BE extends `PaintedBlockEntity`): redstone below/above an amount, or "craft" mode = pattern without inputs, signal while a job needs it.
+- Pattern Terminal amount scaling (free-amount modes only): buttons x2, /2, x10, /10 right of the encoding area (outside the GUI,
+  JEI/REI exclusion area), menu button ids `BTN_SCALE`+i -> `PatternTerminalBlockEntity.scaleAmounts(mul, div)`; disabled when
+  `PatternTerminalMenu.canScale` fails (amount not whole, < 1 or > `MAX_PROCESSING_COUNT`), no clamping (keeps ratios).
+- Guide book `guide_book` (`GuideBookItem`, book + blank pattern): right click opens client-only `client/GuideScreen` via
+  `GuideBookItem.opener`. Pages = `PAGES` list (id + icons), text in `guide.tsautocraft.<id>.title/.text` (en + de); long texts
+  are split into sheets automatically, sheet 0 = table of contents. New page: add to `PAGES` + both lang keys.
+  Pictures = `.diagram("row", ...)`: item icons (`mc:`/`ts:`/`ac:` ids), arrows `> < ^ v`, cables `- |`, `.` empty; drawn live
+  above the text of the page's first sheet (no PNG screenshots).
 - `CraftRequestScreen`: failed preview gets `tsac_max` (binary search `CraftingJob.maxPossible`) -> "Craft N" button.
+  Recipe tree: `CraftingPlanner.plan(..., recordTree)` builds `Node`s (need -> stock/crafts/missing, children = pattern inputs;
+  alternatives roll back their children); `CraftingJob.TreeLine` = flattened pre-order (max 200 lines / depth 16, empty item =
+  "n more"), sent as `tsac_tree`; "Tree/List" button in the preview, click on a line collapses it.
+- Job history: `AutocraftingTerminalBlockEntity` records its own finished jobs and watches the running jobs of the other owners
+  on the network (scan every 20 ticks, keeps the job reference until it is finished) -> `JobHistoryEntry` list ("History",
+  config `jobHistorySize`, newest first), synced as `hist`, tabs "Running/History" in the bar above the job list, `hclear` clears.
+  Several terminals on one network each keep the network history. `CraftingJob.startTime` (codec `start`) set on first `bind`.
+- ETA: `job/JobEta` (transient) measures `doneCrafts` per 100-tick window, EMA 0.3; `JobView.eta` seconds (-1 unknown), shown
+  in the job tooltip (`JobText.eta`).
+- Craft missing (JEI/REI "+" in Tom's Crafting Terminal): client mixins on Tom's `jei/CraftingTerminalTransferHandler` and `rei/ReiTransferHandler`
+  (not own handlers: JEI keeps one handler per menu+recipe type, last registered wins), applied only if the viewer is loaded
+  (`compat/TsAutocraftMixinPlugin`). `client/CraftMissing` counts storage + inventory per input slot (one recipe set) and uses the
+  synced craftables: tooltip lists craftable (blue) / missing (red) items, Ctrl+click sends `tsac_reqs` (one job per item,
+  one rate limit token) -> `CraftRequestProtocol.receiveBatch`, result as actionbar. Tom's handler still fills the grid.
 - REI: API compile only (`me.shedaniel:RoughlyEnoughItems-api-fabric` + `cloth basic-math`), plugin `compat/rei` via
   entrypoint `rei_client`, not in the dev client (untested in game). Ghost targets shared in `client/GhostTargets`.
   EMI has no 26.3 build (2026-11-01).
@@ -128,5 +168,13 @@ The user (Shaun) talks German; reply in German.
 - IntelliJ may save stale buffers over files changed on disk (happened to `ModContent.java`): if edits vanish, check the file.
 - Pixel art: inner areas of the 16px textures are 8px (even), so a 3x3 grid of 1px dots cannot be centered; use 2x2 dots with
   1px gaps (crafting upgrade, provider front).
+- Pattern Access Terminal (`PatternAccessTerminalBlock extends AbstractStorageTerminalBlock`, wireless): lists all Pattern Providers of
+  the network; 6x9 real slots mapped server side onto the visible provider slots (scroll + client-side filter sent via data packet).
+- Level Maintainer (`LevelMaintainerBlockEntity`, `JobOwner`, separate from the Requester): 12 entries item/threshold/batch,
+  config `maintainer*`, Speed + Redstone Upgrade (blocks only new jobs).
+- Crafter triggers: a crafter crafts once per trigger, so extra sets of one delivery are owed in
+  `PatternProviderBlockEntity.pendingTriggers` (saved) and retriggered one per tick. `DispatchContext.undoPull` = delivery failed after
+  pull (not consumed). Results are credited FIFO over all jobs (`CraftingJob.waitingSince`); `tracked` is saved. Requester/Maintainer
+  never replan a job with crafts in flight. `tsac_plan`/`tsac_req` are rate limited per player (`CraftRequestProtocol.takePlan`).
 - Menus/screens sync through Tom's existing `toms_storage:data` packet (`NetworkHandler.sendTo/sendDataToServer`, menus implement `IDataReceiver`).
 - Assets were generated by a Python script (pixel textures, GUI backgrounds, connector models derived from Tom's `cable_connector/*` models).

@@ -13,6 +13,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BrewingStandBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.tom.storagemod.inventory.IInventoryAccess;
@@ -67,6 +68,8 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 		}
 		if (importFluid(net)) return;
 		if (source == null) return;
+		// A brewing stand with a reagent is still brewing: its bottles are not finished yet
+		if (level.getBlockEntity(worldPosition.relative(facing())) instanceof BrewingStandBlockEntity stand && !stand.getItem(3).isEmpty()) return;
 
 		IOMode mode = getMode();
 		boolean filtered = hasAnyFilter();
@@ -139,6 +142,7 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 			ItemStack filled = FluidUtil.fill(empty, c.fluid(), f.copyWithCount(1), tank);
 			if (filled == null) {
 				buffer = net.pushStack(empty);
+				if (!buffer.isEmpty()) return true; // the buffer holds one stack only: stop here
 				continue;
 			}
 			ItemStack rest = net.pushStack(filled.copy());

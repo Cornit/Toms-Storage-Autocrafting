@@ -1,4 +1,8 @@
 {
   "blocks": ["minecraft:brewing_stand"],
-  "sides": ["north", "up"]
+  "sides": ["north", "up"],
+  "routes": [
+    { "items": ["minecraft:potion", "minecraft:splash_potion", "minecraft:lingering_potion", "minecraft:glass_bottle"], "sides": ["north"] },
+    { "fuel": "brewing", "sides": ["east"] }
+  ]
 }

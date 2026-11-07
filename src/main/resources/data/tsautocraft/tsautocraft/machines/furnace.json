@@ -1,0 +1,8 @@
+{
+  "blocks": ["minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker"],
+  "sides": ["up"],
+  "routes": [
+    { "inputs": [0], "sides": ["up"] },
+    { "fuel": "cooking", "sides": ["north", "east", "south", "west"] }
+  ]
+}

@@ -30,7 +30,7 @@ public final class GhostTargets {
 	}
 
 	public static boolean handles(Screen screen) {
-		return screen instanceof PatternTerminalScreen || screen instanceof RequesterScreen || screen instanceof CraftingEmitterScreen;
+		return screen instanceof PatternTerminalScreen || screen instanceof RequesterScreen || screen instanceof LevelMaintainerScreen || screen instanceof CraftingEmitterScreen;
 	}
 
 	public static List<Target> of(Screen screen) {

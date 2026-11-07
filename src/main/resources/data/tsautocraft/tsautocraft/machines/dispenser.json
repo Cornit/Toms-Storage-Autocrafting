@@ -1,0 +1,6 @@
+{
+  "blocks": ["minecraft:dispenser", "minecraft:dropper"],
+  "redstone_pulse": 2,
+  "cooldown": 10,
+  "blocking": true
+}

@@ -9,6 +9,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.BrewingInput;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
@@ -64,6 +65,70 @@ public final class PatternEncoder {
 		if (r.isEmpty()) r = rm.getRecipeFor(RecipeType.BLASTING, in, level).map(h -> h.value().assemble(in));
 		if (r.isEmpty()) r = rm.getRecipeFor(RecipeType.SMOKING, in, level).map(h -> h.value().assemble(in));
 		return r.orElse(ItemStack.EMPTY);
+	}
+
+	/** Result of brewing {@code reagent} into one bottle of {@code input}, empty if there is no brewing recipe. */
+	public static ItemStack brewingResult(Level level, ItemStack input, ItemStack reagent) {
+		if (level == null || level.getServer() == null || input.isEmpty() || reagent.isEmpty()) return ItemStack.EMPTY;
+		BrewingInput in = new BrewingInput(input.copyWithCount(1), reagent.copyWithCount(1));
+		return level.getServer().getRecipeManager().getRecipeFor(RecipeType.BREWING, in, level).map(h -> h.value().assemble(in)).orElse(ItemStack.EMPTY);
+	}
+
+	/** A brew found in a grid: {@code bottles} (1-3) bottles of {@code input} plus one {@code reagent} give {@code bottles} times {@code result}. */
+	public record Brew(ItemStack input, ItemStack reagent, ItemStack result, int bottles) {}
+
+	/** Tries every stack of the grid as reagent against every other one as bottle; null if no brewing recipe matches. */
+	public static Brew findBrew(Level level, List<ItemStack> grid) {
+		for (ItemStack reagent : grid) {
+			if (reagent.isEmpty()) continue;
+			for (ItemStack input : grid) {
+				if (input.isEmpty() || ItemStack.isSameItemSameComponents(input, reagent)) continue;
+				ItemStack result = brewingResult(level, input, reagent);
+				if (result.isEmpty()) continue;
+				int bottles = 0;
+				for (ItemStack st : grid) if (ItemStack.isSameItemSameComponents(st, input)) bottles += st.getCount();
+				return new Brew(input.copyWithCount(1), reagent.copyWithCount(1), result.copyWithCount(1), Math.clamp(bottles, 1, 3));
+			}
+		}
+		return null;
+	}
+
+	/** Grid positions of a brewing pattern (like the brewing stand GUI): fuel top left, reagent top middle, bottles in the bottom row. */
+	public static final int BREW_FUEL = 0, BREW_REAGENT = 1, BREW_FIRST_BOTTLE = 6;
+
+	/** Brewed potion per bottle position of a brewing grid (one stack per bottle), empty if a bottle does not brew with the reagent. */
+	public static List<ItemStack> brewingOutputs(Level level, List<ItemStack> grid) {
+		if (grid.size() < 9) return List.of();
+		ItemStack reagent = grid.get(BREW_REAGENT);
+		List<ItemStack> out = new ArrayList<>(3);
+		for (int i = BREW_FIRST_BOTTLE; i < 9; i++) {
+			if (grid.get(i).isEmpty()) continue;
+			ItemStack r = brewingResult(level, grid.get(i), reagent);
+			if (r.isEmpty()) return List.of();
+			out.add(r.copyWithCount(1)); // potions do not stack: one output slot per bottle
+		}
+		return out;
+	}
+
+	/** Brewing pattern from the brewing grid: reagent, 1-3 bottles (may differ), optional fuel; one brewed potion per bottle. */
+	public static Result encodeBrewing(Level level, List<ItemStack> grid) {
+		if (grid.size() < 9 || grid.get(BREW_REAGENT).isEmpty()) return Result.error("msg.tsautocraft.encode.no_brewing");
+		List<ItemStack> results = brewingOutputs(level, grid);
+		if (results.isEmpty()) return Result.error("msg.tsautocraft.encode.no_brewing");
+		ItemStack fuel = grid.get(BREW_FUEL);
+		if (!fuel.isEmpty() && !fuel.has(net.minecraft.core.component.DataComponents.BREWING_FUEL)) return Result.error("msg.tsautocraft.encode.no_brewing_fuel");
+		List<PatternData.Entry> in = new ArrayList<>(java.util.Collections.nCopies(9, PatternData.Entry.EMPTY));
+		in.set(BREW_FUEL, fuel.isEmpty() ? PatternData.Entry.EMPTY : new PatternData.Entry(fuel, 1));
+		in.set(BREW_REAGENT, new PatternData.Entry(grid.get(BREW_REAGENT), 1));
+		for (int i = BREW_FIRST_BOTTLE; i < 9; i++) if (!grid.get(i).isEmpty()) in.set(i, new PatternData.Entry(grid.get(i), 1));
+		List<PatternData.Entry> out = new ArrayList<>(3);
+		for (ItemStack r : results) {
+			int same = -1;
+			for (int j = 0; j < out.size(); j++) if (ItemStack.isSameItemSameComponents(out.get(j).item(), r)) same = j;
+			if (same >= 0) out.set(same, new PatternData.Entry(r, out.get(same).count() + 1));
+			else out.add(new PatternData.Entry(r, 1));
+		}
+		return Result.ok(new PatternData(PatternData.BREWING, in, out));
 	}
 
 	/** First non-empty stack of {@code grid}. */

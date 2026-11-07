@@ -32,6 +32,7 @@ desktop.ini
 # Logs / JVM crash dumps
 *.log
 hs_err_pid*
+*.stackdump
 
 # Local leftovers
 codes

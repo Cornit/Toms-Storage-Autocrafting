@@ -59,21 +59,69 @@ public final class TerminalCrafting {
 		return last;
 	}
 
-	/** An Importer at {@code pos} brought items into the network: credit them to the running jobs of the network (Autocrafting Terminals, Requesters, Exporters), each item only once. */
+	/**
+	 * An Importer at {@code pos} brought items into the network: credit them to the running jobs of the network (Autocrafting Terminals, Requesters, Exporters), each item only once.
+	 * The job that has waited longest for this item comes first (results leave the machines in dispatch order).
+	 */
 	public static void itemsArrived(Level level, BlockPos pos, ItemStack stack, long count) {
 		if (stack.isEmpty() || count <= 0) return;
 		ItemKey key = new ItemKey(stack);
-		long left = count;
-		for (BlockEntity be : nodes(level, pos)) {
+		record Waiting(BlockEntity owner, CraftingJob job, long since) {}
+		List<Waiting> waiting = new ArrayList<>();
+		List<BlockEntity> nodes = nodes(level, pos);
+		providerResults(nodes, key, count);
+		for (BlockEntity be : nodes) {
 			if (!(be instanceof JobOwner owner)) continue;
 			for (CraftingJob j : owner.activeJobs()) {
-				long used = j.onItemArrived(key, left);
-				if (used > 0) {
-					left -= used;
-					be.setChanged();
-				}
-				if (left <= 0) return;
+				long since = j.waitingSince(key);
+				if (since != Long.MAX_VALUE) waiting.add(new Waiting(be, j, since));
 			}
+		}
+		waiting.sort(java.util.Comparator.comparingLong(Waiting::since).thenComparingInt(w -> w.job().uid));
+		long left = count;
+		for (Waiting w : waiting) {
+			long used = w.job().onItemArrived(key, left);
+			if (used > 0) {
+				left -= used;
+				w.owner().setChanged();
+			}
+			if (left <= 0) return;
+		}
+	}
+
+	/**
+	 * Lock mode "until result returned": the arrived results unlock the providers waiting for them, the one that has
+	 * waited longest first. Independent of the jobs (results of a cancelled job still unlock the machine).
+	 */
+	private static void providerResults(List<BlockEntity> nodes, ItemKey key, long count) {
+		record Awaiting(CraftingProvider provider, long since) {}
+		List<Awaiting> awaiting = new ArrayList<>();
+		for (BlockEntity be : nodes) {
+			if (!(be instanceof CraftingProvider p)) continue;
+			long since = p.awaitingSince(key);
+			if (since != Long.MAX_VALUE) awaiting.add(new Awaiting(p, since));
+		}
+		awaiting.sort(java.util.Comparator.comparingLong(Awaiting::since));
+		long left = count;
+		for (Awaiting a : awaiting) {
+			left -= a.provider().resultsArrived(key, left);
+			if (left <= 0) return;
+		}
+	}
+
+	/** A job with id {@code jobUid} on the network of {@code pos} was cancelled: providers give back its undelivered inputs. */
+	public static void returnInputs(Level level, BlockPos pos, int jobUid) {
+		List<BlockEntity> nodes = nodes(level, pos);
+		com.tom.storagemod.inventory.IInventoryAccess net = null;
+		for (BlockEntity be : nodes) {
+			if (be instanceof com.tom.storagemod.block.entity.IInventoryConnector c && c.hasConnectedInventories()) {
+				net = c.getMergedHandler();
+				break;
+			}
+		}
+		if (net == null) return;
+		for (BlockEntity be : nodes) {
+			if (be instanceof CraftingProvider p) p.returnInputs(jobUid, net);
 		}
 	}
 

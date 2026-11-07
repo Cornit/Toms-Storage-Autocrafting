@@ -42,6 +42,10 @@ public final class TsAutocraftConfig {
 	public int crafterPulseTicks = 2;
 	/** "direct"/"redstone": a crafter still holding foreign items after this many ticks is emptied back into the network. */
 	public int crafterStuckTicks = 20;
+	/** Lock mode "until result": a side of a Pattern Provider is unlocked after this many seconds even if the results never came back (0 = never). */
+	public int providerLockTimeoutSeconds = 120;
+	/** Cancelling a job returns its inputs still waiting in crafters (not triggered yet) and, where clearly identifiable, in machine input slots. */
+	public boolean returnInputsOnCancel = true;
 	//endregion
 
 	//region Jobs
@@ -56,6 +60,8 @@ public final class TsAutocraftConfig {
 	public int jobResultTimeoutSeconds = 120;
 	/** Without Importer reports: a waiting job ends after this many seconds without the target stock rising. */
 	public int jobIdleSeconds = 20;
+	/** Finished/cancelled jobs of the network an Autocrafting Terminal keeps in its history (0 = off). */
+	public int jobHistorySize = 20;
 	//endregion
 
 	//region Requester
@@ -66,6 +72,14 @@ public final class TsAutocraftConfig {
 	public int requesterMaxBatch = 1024;
 	/** A Requester job that waits this many seconds for missing ingredients is planned again. */
 	public int requesterReplanSeconds = 10;
+	//endregion
+
+	//region Level Maintainer
+
+	/** How often (ticks) a Level Maintainer checks its stock (halved per Speed Upgrade). */
+	public int maintainerCheckTicks = 40;
+	/** A Level Maintainer job that waits this many seconds for missing ingredients (nothing in flight) is planned again. */
+	public int maintainerReplanSeconds = 10;
 	//endregion
 
 	//region Importer / Exporter / terminals
@@ -88,14 +102,18 @@ public final class TsAutocraftConfig {
 		crafterCooldownTicks = Math.max(1, crafterCooldownTicks);
 		crafterPulseTicks = Math.max(1, crafterPulseTicks);
 		crafterStuckTicks = Math.max(1, crafterStuckTicks);
+		providerLockTimeoutSeconds = Math.max(0, providerLockTimeoutSeconds);
 		maxJobsPerTerminal = Math.max(1, maxJobsPerTerminal);
 		jobsPerCapacityUpgrade = Math.max(0, jobsPerCapacityUpgrade);
 		maxRequestAmount = Math.max(1, maxRequestAmount);
 		jobResultTimeoutSeconds = Math.max(1, jobResultTimeoutSeconds);
 		jobIdleSeconds = Math.max(1, jobIdleSeconds);
+		jobHistorySize = Math.clamp(jobHistorySize, 0, 100);
 		requesterCheckTicks = Math.max(1, requesterCheckTicks);
 		requesterMaxBatch = Math.max(1, requesterMaxBatch);
 		requesterReplanSeconds = Math.max(1, requesterReplanSeconds);
+		maintainerCheckTicks = Math.max(1, maintainerCheckTicks);
+		maintainerReplanSeconds = Math.max(1, maintainerReplanSeconds);
 		ioIntervalTicks = Math.max(1, ioIntervalTicks);
 		ioItemsPerOperation = Math.clamp(ioItemsPerOperation, 1, 64);
 		craftablesSyncTicks = Math.max(1, craftablesSyncTicks);

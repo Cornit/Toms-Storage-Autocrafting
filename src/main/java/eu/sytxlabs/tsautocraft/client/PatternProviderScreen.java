@@ -15,8 +15,9 @@ import eu.sytxlabs.tsautocraft.menu.PatternProviderMenu;
 
 /** 4 rows of pattern slots (locked rows greyed out), blocking/substitutes buttons, upgrade panel on the right. */
 public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu> {
-	private static final int BTN_Y = 94;
-	private Button blockingBtn, substBtn;
+	private static final int BTN_Y = 94, BTN2_Y = 112;
+	private Button blockingBtn, substBtn, lockBtn;
+	private PatternProviderBlockEntity.LockMode shownLock;
 
 	public PatternProviderScreen(PatternProviderMenu menu, Inventory inv, Component title) {
 		super(menu, inv, title, PatternProviderMenu.WIDTH, PatternProviderMenu.HEIGHT);
@@ -30,6 +31,22 @@ public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu
 		blockingBtn.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.blocking")));
 		substBtn = addRenderableWidget(Button.builder(substLabel(), b -> click(1)).bounds(leftPos + 89, topPos + BTN_Y, 80, 16).build());
 		substBtn.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.substitutes_provider")));
+		// Lock mode (shift = back), priority -/+ (shift = 10)
+		shownLock = null;
+		lockBtn = addRenderableWidget(Button.builder(lockLabel(), b -> click(shift() ? PatternProviderMenu.BTN_LOCK_PREV : PatternProviderMenu.BTN_LOCK_NEXT)).bounds(leftPos + 7, topPos + BTN2_Y, 98, 16).build());
+		Button down = addRenderableWidget(Button.builder(Component.literal("-"), b -> click(shift() ? PatternProviderMenu.BTN_PRIO_DOWN_10 : PatternProviderMenu.BTN_PRIO_DOWN)).bounds(leftPos + 107, topPos + BTN2_Y, 14, 16).build());
+		Button up = addRenderableWidget(Button.builder(Component.literal("+"), b -> click(shift() ? PatternProviderMenu.BTN_PRIO_UP_10 : PatternProviderMenu.BTN_PRIO_UP)).bounds(leftPos + 155, topPos + BTN2_Y, 14, 16).build());
+		Tooltip prioTip = Tooltip.create(Component.translatable("tooltip.tsautocraft.provider_priority"));
+		down.setTooltip(prioTip);
+		up.setTooltip(prioTip);
+	}
+
+	private static boolean shift() {
+		return net.minecraft.client.Minecraft.getInstance().hasShiftDown();
+	}
+
+	private Component lockLabel() {
+		return Component.translatable("button.tsautocraft.lock", Component.translatable(menu.lockMode.key() + ".short"));
 	}
 
 	private Component label() {
@@ -49,6 +66,11 @@ public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
 		if (blockingBtn != null) blockingBtn.setMessage(label());
 		if (substBtn != null) substBtn.setMessage(substLabel());
+		if (lockBtn != null && shownLock != menu.lockMode) {
+			shownLock = menu.lockMode;
+			lockBtn.setMessage(lockLabel());
+			lockBtn.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.lock", Component.translatable(menu.lockMode.key()), Component.translatable(menu.lockMode.key() + ".desc"))));
+		}
 		super.extractRenderState(graphics, mouseX, mouseY, a);
 	}
 
@@ -77,6 +99,8 @@ public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu
 	@Override
 	protected void extractLabels(GuiGraphicsExtractor g, int xm, int ym) {
 		super.extractLabels(g, xm, ym);
+		Component prio = Component.translatable("label.tsautocraft.provider_priority", menu.priority);
+		g.text(font, prio, 138 - font.width(prio) / 2, BTN2_Y + 4, 0xFF404040, false);
 		int active = menu.activeSlots();
 		if (active < PatternProviderBlockEntity.SLOTS) {
 			Component hint = Component.translatable("label.tsautocraft.capacity_hint");
