@@ -281,6 +281,8 @@
   "config.tsautocraft.ioIntervalTicks.desc": "Ticks between two Importer/Exporter operations.",
   "config.tsautocraft.ioItemsPerOperation": "Items per operation",
   "config.tsautocraft.ioItemsPerOperation.desc": "Items moved per Importer/Exporter operation (at most one stack).",
+  "config.tsautocraft.ioIdleMaxSkip": "Idle skip (max)",
+  "config.tsautocraft.ioIdleMaxSkip.desc": "An Importer/Exporter that found nothing to move skips up to this many operations (one more per idle operation). 0 = never.",
   "config.tsautocraft.craftablesSyncTicks": "Craftable list refresh (ticks)",
   "config.tsautocraft.craftablesSyncTicks.desc": "How often Tom's terminals refresh the list of craftable items.",
   "pattern_mode.tsautocraft.fluid": "Fluid processing",

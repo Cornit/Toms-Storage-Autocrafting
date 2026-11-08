@@ -50,9 +50,9 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 	}
 
 	@Override
-	protected void work() {
+	protected boolean work() {
 		IInventoryAccess net = network.access(level, worldPosition);
-		if (net == PlatformInventoryAccess.EMPTY) return;
+		if (net == PlatformInventoryAccess.EMPTY) return false;
 		Storage<ItemVariant> source = StorageUtil.facingStorage(level, worldPosition, facing());
 
 		if (!buffer.isEmpty()) {
@@ -63,13 +63,12 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 			if (buffer.getCount() != before.getCount()) setChanged();
 			if (!buffer.isEmpty()) {
 				backoff = 4;
-				return;
+				return true;
 			}
 		}
-		if (importFluid(net)) return;
-		if (source == null) return;
-		// A brewing stand with a reagent is still brewing: its bottles are not finished yet
-		if (level.getBlockEntity(worldPosition.relative(facing())) instanceof BrewingStandBlockEntity stand && !stand.getItem(3).isEmpty()) return;
+		if (importFluid(net)) return true;
+		if (source == null || level == null) return false;
+		if (level.getBlockEntity(worldPosition.relative(facing())) instanceof BrewingStandBlockEntity stand && !stand.getItem(3).isEmpty()) return false;
 
 		IOMode mode = getMode();
 		boolean filtered = hasAnyFilter();
@@ -103,14 +102,14 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 			amount = wrappedAmount;
 			chosenIndex = wrappedIndex;
 		}
-		if (chosen == null) return;
+		if (chosen == null) return false;
 
 		long extracted;
 		try (Transaction t = Transaction.openOuter()) {
 			extracted = source.extract(chosen, amount, t);
 			t.commit();
 		}
-		if (extracted <= 0) return;
+		if (extracted <= 0) return false;
 		mode.moved(modeContext, chosenIndex);
 
 		ItemStack rest = StorageUtil.push(net, chosen.toStack((int) extracted));
@@ -121,6 +120,7 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 			backoff = 8;
 		}
 		setChanged();
+		return true;
 	}
 
 	private final ItemStack[] fluidKey = new ItemStack[SLOTS];

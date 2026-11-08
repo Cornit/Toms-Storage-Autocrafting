@@ -88,6 +88,8 @@ public final class TsAutocraftConfig {
 	public int ioIntervalTicks = 8;
 	/** Items moved per Importer/Exporter operation (at most one stack). */
 	public int ioItemsPerOperation = 16;
+	/** An Importer/Exporter that found nothing to move skips up to this many operations (one more per idle operation). */
+	public int ioIdleMaxSkip = 3;
 	/** How often (ticks) Tom's terminals refresh the list of craftable items. */
 	public int craftablesSyncTicks = 20;
 	//endregion
@@ -116,6 +118,7 @@ public final class TsAutocraftConfig {
 		maintainerReplanSeconds = Math.max(1, maintainerReplanSeconds);
 		ioIntervalTicks = Math.max(1, ioIntervalTicks);
 		ioItemsPerOperation = Math.clamp(ioItemsPerOperation, 1, 64);
+		ioIdleMaxSkip = Math.clamp(ioIdleMaxSkip, 0, 20);
 		craftablesSyncTicks = Math.max(1, craftablesSyncTicks);
 	}
 

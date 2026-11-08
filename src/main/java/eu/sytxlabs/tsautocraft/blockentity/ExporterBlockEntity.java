@@ -116,9 +116,9 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 	}
 
 	@Override
-	protected void work() {
+	protected boolean work() {
 		Storage<ItemVariant> target = StorageUtil.facingStorage(level, worldPosition, facing());
-		if (target == null) return;
+		if (target == null) return false;
 
 		if (!buffer.isEmpty()) {
 			int was = buffer.getCount();
@@ -126,12 +126,12 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 			if (buffer.getCount() != was) setChanged();
 			if (!buffer.isEmpty()) {
 				backoff = 4;
-				return;
+				return true;
 			}
 		}
 
 		IInventoryAccess net = network.access(level, worldPosition);
-		if (net == PlatformInventoryAccess.EMPTY) return;
+		if (net == PlatformInventoryAccess.EMPTY) return false;
 		var tracker = net.tracker();
 		tracker.getChangeTracker(level);
 		Reservations res = TerminalCrafting.reservations(level, worldPosition);
@@ -166,8 +166,9 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 			}
 			mode.moved(modeContext, i);
 			setChanged();
-			return;
+			return true;
 		}
+		return false;
 	}
 
 	/** Crafting Upgrade: nothing of the filter item {@code i} in storage -> craft what fits into the target. */

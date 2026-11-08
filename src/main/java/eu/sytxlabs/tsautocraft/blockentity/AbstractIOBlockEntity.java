@@ -79,6 +79,7 @@ public abstract class AbstractIOBlockEntity extends PaintedBlockEntity implement
 		public void setChanged() {
 			super.setChanged();
 			predicatesDirty = true;
+			wake();
 			AbstractIOBlockEntity.this.setChanged();
 		}
 	};
@@ -137,6 +138,7 @@ public abstract class AbstractIOBlockEntity extends PaintedBlockEntity implement
 	public void cycleMode() {
 		mode = IOModes.next(getMode(), upgradeHost());
 		cursor = 0;
+		wake();
 		setChanged();
 	}
 
@@ -155,10 +157,25 @@ public abstract class AbstractIOBlockEntity extends PaintedBlockEntity implement
 			return;
 		}
 		if (predicatesDirty) rebuildPredicates();
-		work();
+		if (work()) {
+			idle = 0;
+		} else {
+			idle = Math.min(idle + 1, TsAutocraftConfig.get().ioIdleMaxSkip);
+			backoff = Math.max(backoff, idle);
+		}
 	}
 
-	protected abstract void work();
+	/** One operation; true if something was moved or is waiting in the buffer (no idle skipping then). */
+	protected abstract boolean work();
+
+	/** Idle operations in a row, see {@link #updateServer()}. */
+	private int idle;
+
+	/** Something changed (filters, menu, redstone): work again at the next operation. */
+	protected void wake() {
+		idle = 0;
+		backoff = 0;
+	}
 
 	//region Redstone Upgrade
 
@@ -182,7 +199,9 @@ public abstract class AbstractIOBlockEntity extends PaintedBlockEntity implement
 
 	private boolean redstoneAllows() {
 		if (!hasRedstoneUpgrade()) return true;
+		if (level == null) return false;
 		boolean powered = level.hasNeighborSignal(worldPosition);
+		if (powered != lastPowered) wake();
 		if (powered && !lastPowered) {
 			toggleOn = !toggleOn;
 			setChanged();

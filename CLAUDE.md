@@ -24,6 +24,8 @@ The user (Shaun) talks German; reply in German.
   multiplier, guide book (see CHANGELOG.md).
 - 0.4.0 (2026-11-08, nothing tested in game): patterns on any inventory, provider named after its machine, big performance
   pass (see Performance below), API VERSION 2 (`PatternData.derived`).
+- 0.4.1 (2026-11-08): idle backoff for Importer/Exporter (`work()` returns whether something moved, `wake()` on filter/mode/
+  redstone change, config `ioIdleMaxSkip`).
 - Next: test in game (job list buttons/tooltips, Jade, upgrades stacking, IO modes + ghost/real filters, Redstone Upgrade on
   IO and in front of a crafter, omni provider with several crafters, fluid pattern + Importer filling, brewing stand profile,
   wireless terminals, config screen with `-PwithModMenu`, framed directional emitter).
