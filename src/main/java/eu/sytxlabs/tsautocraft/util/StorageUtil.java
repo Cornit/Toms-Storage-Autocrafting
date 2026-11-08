@@ -15,7 +15,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 import com.tom.storagemod.inventory.IInventoryAccess;
-import com.tom.storagemod.inventory.StoredItemStack;
+import com.tom.storagemod.inventory.PlatformInventoryAccess;
 
 public final class StorageUtil {
 	private StorageUtil() {}
@@ -85,10 +85,67 @@ public final class StorageUtil {
 		return true;
 	}
 
+	/** Item counts of one network storage, built in one pass; valid while Tom's change tracker stays the same. */
+	private static final class Counts {
+		long time;
+		long tracker;
+		final Map<ItemKey, Long> counts = new java.util.HashMap<>();
+	}
+
+	private static final Map<IInventoryAccess, Counts> COUNTS = new java.util.WeakHashMap<>();
+
+	/**
+	 * Amount of {@code key} in the network storage. Tom's {@code countItems} walks every slot of every inventory, so all
+	 * counts come from one map per storage, rebuilt only when Tom's change tracker reports a change. Our own pulls and
+	 * pushes ({@link #pull}, {@link #push}) adjust the map directly, so counts stay exact within a tick.
+	 */
 	public static long count(IInventoryAccess access, Level level, ItemKey key) {
+		if (access == PlatformInventoryAccess.EMPTY) return 0;
+		return counts(access, level).counts.getOrDefault(key, 0L);
+	}
+
+	private static Counts counts(IInventoryAccess access, Level level) {
+		Counts c = COUNTS.get(access);
+		long now = level.getGameTime();
+		if (c != null && c.time == now) return c;
 		var tr = access.tracker();
-		tr.getChangeTracker(level);
-		return tr.countItems(new StoredItemStack(key.template()));
+		long tracker = tr.getChangeTracker(level);
+		if (c != null && c.tracker == tracker) {
+			c.time = now;
+			return c;
+		}
+		if (c == null) COUNTS.put(access, c = new Counts());
+		c.time = now;
+		c.tracker = tracker;
+		c.counts.clear();
+		Map<ItemKey, Long> m = c.counts;
+		tr.streamWrappedStacks(false).forEach(s -> {
+			if (s != null && s.getQuantity() > 0) m.merge(new ItemKey(s.getStack()), s.getQuantity(), Long::sum);
+		});
+		return c;
+	}
+
+	private static void adjust(IInventoryAccess access, ItemStack stack, long delta) {
+		if (delta == 0 || stack.isEmpty()) return;
+		Counts c = COUNTS.get(access);
+		if (c != null) c.counts.merge(new ItemKey(stack), delta, (a, b) -> Math.max(0, a + b));
+	}
+
+	/** {@link IInventoryAccess#pullMatchingStack} that keeps {@link #count} exact. */
+	public static ItemStack pull(IInventoryAccess access, ItemStack stack, long max) {
+		ItemStack got = access.pullMatchingStack(stack, max);
+		adjust(access, got, -got.getCount());
+		return got;
+	}
+
+	/** {@link IInventoryAccess#pushStack} that keeps {@link #count} exact. @return what did not fit */
+	public static ItemStack push(IInventoryAccess access, ItemStack stack) {
+		if (stack.isEmpty()) return stack;
+		ItemStack proto = stack.copyWithCount(1);
+		int before = stack.getCount();
+		ItemStack rest = access.pushStack(stack);
+		adjust(access, proto, before - rest.getCount());
+		return rest;
 	}
 
 	/**
@@ -110,7 +167,7 @@ public final class StorageUtil {
 				pulled.add(ItemStack.EMPTY);
 				continue;
 			}
-			ItemStack got = access.pullMatchingStack(w, w.getCount());
+			ItemStack got = StorageUtil.pull(access, w, w.getCount());
 			pulled.add(got);
 			if (got.getCount() < w.getCount()) {
 				ok = false;
@@ -123,7 +180,7 @@ public final class StorageUtil {
 		List<ItemStack> leftovers = new ArrayList<>();
 		for (ItemStack p : pulled) {
 			if (!p.isEmpty()) {
-				ItemStack rem = access.pushStack(p);
+				ItemStack rem = StorageUtil.push(access, p);
 				if (!rem.isEmpty()) leftovers.add(rem);
 			}
 		}

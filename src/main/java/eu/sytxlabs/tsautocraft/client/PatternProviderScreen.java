@@ -13,10 +13,10 @@ import com.tom.storagemod.screen.TSContainerScreen;
 import eu.sytxlabs.tsautocraft.blockentity.PatternProviderBlockEntity;
 import eu.sytxlabs.tsautocraft.menu.PatternProviderMenu;
 
-/** 4 rows of pattern slots (locked rows greyed out), blocking/substitutes buttons, upgrade panel on the right. */
+/** 4 rows of pattern slots (locked rows greyed out), blocking button, upgrade panel on the right. */
 public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu> {
 	private static final int BTN_Y = 94, BTN2_Y = 112;
-	private Button blockingBtn, substBtn, lockBtn;
+	private Button blockingBtn, lockBtn;
 	private PatternProviderBlockEntity.LockMode shownLock;
 
 	public PatternProviderScreen(PatternProviderMenu menu, Inventory inv, Component title) {
@@ -27,10 +27,8 @@ public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu
 	@Override
 	protected void init() {
 		super.init();
-		blockingBtn = addRenderableWidget(Button.builder(label(), b -> click(0)).bounds(leftPos + 7, topPos + BTN_Y, 80, 16).build());
+		blockingBtn = addRenderableWidget(Button.builder(label(), b -> click(0)).bounds(leftPos + 7, topPos + BTN_Y, 162, 16).build());
 		blockingBtn.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.blocking")));
-		substBtn = addRenderableWidget(Button.builder(substLabel(), b -> click(1)).bounds(leftPos + 89, topPos + BTN_Y, 80, 16).build());
-		substBtn.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.substitutes_provider")));
 		// Lock mode (shift = back), priority -/+ (shift = 10)
 		shownLock = null;
 		lockBtn = addRenderableWidget(Button.builder(lockLabel(), b -> click(shift() ? PatternProviderMenu.BTN_LOCK_PREV : PatternProviderMenu.BTN_LOCK_NEXT)).bounds(leftPos + 7, topPos + BTN2_Y, 98, 16).build());
@@ -53,10 +51,6 @@ public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu
 		return Component.translatable(menu.blocking ? "button.tsautocraft.blocking_on" : "button.tsautocraft.blocking_off");
 	}
 
-	private Component substLabel() {
-		return Component.translatable(menu.substitutes ? "button.tsautocraft.substitutes_on" : "button.tsautocraft.substitutes_off");
-	}
-
 	private void click(int id) {
         //noinspection DataFlowIssue
         this.minecraft.gameMode.handleInventoryButtonClick(this.menu.containerId, id);
@@ -65,7 +59,6 @@ public class PatternProviderScreen extends TSContainerScreen<PatternProviderMenu
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
 		if (blockingBtn != null) blockingBtn.setMessage(label());
-		if (substBtn != null) substBtn.setMessage(substLabel());
 		if (lockBtn != null && shownLock != menu.lockMode) {
 			shownLock = menu.lockMode;
 			lockBtn.setMessage(lockLabel());

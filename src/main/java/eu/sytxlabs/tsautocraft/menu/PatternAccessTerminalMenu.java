@@ -9,7 +9,6 @@ import java.util.Set;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.server.level.ServerPlayer;
@@ -28,6 +27,7 @@ import net.minecraft.world.level.storage.ValueInput;
 import com.tom.storagemod.network.NetworkHandler;
 import com.tom.storagemod.util.IDataReceiver;
 
+import eu.sytxlabs.tsautocraft.util.SyncHash;
 import eu.sytxlabs.tsautocraft.ModContent;
 import eu.sytxlabs.tsautocraft.blockentity.PatternAccessTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.blockentity.PatternProviderBlockEntity;
@@ -89,10 +89,13 @@ public class PatternAccessTerminalMenu extends AbstractContainerMenu implements 
 	/** Positions of the providers to show, null = all. */
 	private Set<Long> view;
 	private int syncTimer;
-	private CompoundTag lastSent;
+	private boolean sent;
+	private long lastHash;
 
 	// Client state (the server keeps its own lines too)
 	public final List<Entry> entries = new ArrayList<>();
+	/** Client: bumped on every directory update (screens cache their filtered view by it). */
+	public int revision;
 	public List<Line> lines = List.of();
 	public int scroll;
 	public Runnable onUpdate;
@@ -184,16 +187,20 @@ public class PatternAccessTerminalMenu extends AbstractContainerMenu implements 
 	/** Directory, window and scroll to the client, only if something changed. */
 	private void sendState() {
 		if (!(inv.player instanceof ServerPlayer sp)) return;
+		List<Entry> entries = new ArrayList<>(directory.size());
+		for (PatternProviderBlockEntity p : directory) entries.add(entry(p));
+		// Compare a content hash first: encoding everything to NBT every 10 ticks just to find "no change" is the expensive part
+		long hash = SyncHash.of(entries, lines, scroll);
+		if (sent && hash == lastHash) return;
+		sent = true;
+		lastHash = hash;
 		TagValueOutput out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, sp.registryAccess());
 		var dir = out.list("dir", Entry.CODEC);
-		for (PatternProviderBlockEntity p : directory) dir.add(entry(p));
+		entries.forEach(dir::add);
 		var l = out.list("lines", Line.CODEC);
 		lines.forEach(l::add);
 		out.putInt("scroll", scroll);
-		CompoundTag tag = out.buildResult();
-		if (tag.equals(lastSent)) return;
-		lastSent = tag;
-		NetworkHandler.sendTo(sp, tag);
+		NetworkHandler.sendTo(sp, out.buildResult());
 	}
 
 	@Override
@@ -201,6 +208,7 @@ public class PatternAccessTerminalMenu extends AbstractContainerMenu implements 
 		if (be == null) {
 			entries.clear();
 			entries.addAll(in.listOrEmpty("dir", Entry.CODEC).stream().toList());
+			revision++;
 			lines = in.listOrEmpty("lines", Line.CODEC).stream().toList();
 			scroll = in.getIntOr("scroll", 0);
 			if (onUpdate != null) onUpdate.run();

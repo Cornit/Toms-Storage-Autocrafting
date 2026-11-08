@@ -67,6 +67,8 @@ public class LevelMaintainerBlockEntity extends PlatformBlockEntity implements T
 	private final int[] batches = new int[ENTRIES];
 	private final CraftingJob[] jobs = new CraftingJob[ENTRIES];
 	private final int[] cooldown = new int[ENTRIES];
+	/** Failed plans in a row per entry: the cooldown doubles each time (up to 8x), see {@link #failPlan}. */
+	private final int[] planFails = new int[ENTRIES];
 	private final int[] status = new int[ENTRIES];
 	private final long[] stock = new long[ENTRIES];
 	private final ItemStack[] statusItem = new ItemStack[ENTRIES];
@@ -113,7 +115,7 @@ public class LevelMaintainerBlockEntity extends PlatformBlockEntity implements T
 	public void setThreshold(int i, int amount) {
 		if (i < 0 || i >= ENTRIES) return;
 		thresholds[i] = Math.clamp(amount, 0, MAX_THRESHOLD);
-		cooldown[i] = 0;
+		cooldown[i] = planFails[i] = 0;
 		setChanged();
 	}
 
@@ -121,7 +123,7 @@ public class LevelMaintainerBlockEntity extends PlatformBlockEntity implements T
 	public void setBatch(int i, int amount) {
 		if (i < 0 || i >= ENTRIES) return;
 		batches[i] = Math.clamp(amount, 0, TsAutocraftConfig.get().maxRequestAmount);
-		cooldown[i] = 0;
+		cooldown[i] = planFails[i] = 0;
 		setChanged();
 	}
 
@@ -223,6 +225,7 @@ public class LevelMaintainerBlockEntity extends PlatformBlockEntity implements T
 			if (outcome.ok()) {
 				nextId++;
 				jobs[i] = outcome.job();
+				planFails[i] = 0;
 				JobScheduler.started(this, jobs[i]);
 				setStatus(i, ST_CRAFTING, ItemStack.EMPTY);
 				setChanged();
@@ -233,10 +236,15 @@ public class LevelMaintainerBlockEntity extends PlatformBlockEntity implements T
 					ItemKey first = outcome.missing().keySet().iterator().next();
 					setStatus(i, ST_MISSING, first.create(1));
 				}
-				cooldown[i] = 5;
+				failPlan(i);
 			}
 		}
 		if (runJobs && !activeJobs().isEmpty()) JobScheduler.submit(this);
+	}
+
+	private void failPlan(int i) {
+		cooldown[i] = 5 << Math.min(planFails[i], 3);
+		if (planFails[i] < 3) planFails[i]++;
 	}
 
 	/** Crafts of the job are still inside machines (cancelling now would lose track of them). */

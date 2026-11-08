@@ -251,7 +251,7 @@ public class AutocraftingTerminalBlockEntity extends PlatformBlockEntity impleme
 
 	/** Craftable items. */
 	public List<ItemStack> craftables() {
-		return CraftingJob.craftables(network.providers(level, worldPosition));
+		return TerminalCrafting.craftables(level, worldPosition);
 	}
 
 	public long stockOf(ItemStack st) {

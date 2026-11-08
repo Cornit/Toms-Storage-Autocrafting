@@ -206,6 +206,30 @@ public final class PatternEncoder {
 	}
 
 	/**
+	 * Items worth testing at a position holding {@code original}: accepted by an ingredient that also accepts the original.
+	 * A full recipe match per registry item costs ~9 x 20k matches in a modpack; the ingredient test is cheap. Recipes
+	 * without placement info (special recipes) still test every item.
+	 */
+	private static Iterable<Item> candidates(CraftingRecipe recipe, ItemStack original) {
+		var info = recipe.placementInfo();
+		if (info.isImpossibleToPlace()) return BuiltInRegistries.ITEM;
+		List<net.minecraft.world.item.crafting.Ingredient> relevant = new ArrayList<>();
+		for (var ing : info.ingredients()) if (ing.test(original)) relevant.add(ing);
+		List<Item> items = new ArrayList<>();
+		for (Item item : BuiltInRegistries.ITEM) {
+			if (relevant.isEmpty()) break;
+			ItemStack probe = item.getDefaultInstance(); // test(ItemStack) also covers Fabric custom ingredients
+			for (var ing : relevant) {
+				if (ing.test(probe)) {
+					items.add(item);
+					break;
+				}
+			}
+		}
+		return items;
+	}
+
+	/**
 	 * Every item that can replace the one at {@code pos} so that the same recipe still matches and gives the same result (e.g. any planks for a crafting table).
 	 * Tested against the recipe itself, so tags, shapeless recipes and mod recipes all work.
 	 */
@@ -214,7 +238,7 @@ public final class PatternEncoder {
 		List<ItemStack> test = new ArrayList<>(9);
 		for (int i = 0; i < 9; i++) test.add(i < grid.size() ? grid.get(i) : ItemStack.EMPTY);
 		List<ItemStack> alt = new ArrayList<>();
-		for (Item item : BuiltInRegistries.ITEM) {
+		for (Item item : candidates(recipe, original)) {
 			if (item == Items.AIR || item == original.getItem()) continue;
 			ItemStack candidate = item.getDefaultInstance();
 			if (!PlannerHooks.isSubstitute(original, candidate)) continue;

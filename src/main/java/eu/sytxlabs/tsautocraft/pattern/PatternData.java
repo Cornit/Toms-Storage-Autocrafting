@@ -37,7 +37,10 @@ import eu.sytxlabs.tsautocraft.util.ItemKey;
  * </ul>
  * Counts are stored in {@link Entry#count()} (int), not in the ItemStack, because {@code ItemStack.CODEC} is limited to 99.
  */
-public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outputs) implements TooltipProvider {
+/**
+ * @param derived lazily computed values (totals, hash), internal: not part of equality, always fresh per instance
+ */
+public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outputs, Derived derived) implements TooltipProvider {
 	public static final Identifier CRAFTING = TsAutocraft.id("crafting"), PROCESSING = TsAutocraft.id("processing"), SMELTING = TsAutocraft.id("smelting"), FLUID = TsAutocraft.id("fluid"), BREWING = TsAutocraft.id("brewing");
 	public static final Codec<PatternData> CODEC = RecordCodecBuilder.create(i -> i.group(
 			Identifier.CODEC.optionalFieldOf("mode").forGetter(d -> Optional.of(d.mode())),
@@ -119,12 +122,53 @@ public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outpu
 
 	/** At least one input may be replaced by a substitute. */
 	public boolean hasSubstitutes() {
-		return inputs.stream().anyMatch(e -> !e.alternatives().isEmpty());
+		Boolean b = derived.substitutes;
+		if (b == null) derived.substitutes = b = inputs.stream().anyMatch(e -> !e.alternatives().isEmpty());
+		return b;
 	}
 
 	public PatternData {
 		inputs = List.copyOf(inputs);
 		outputs = List.copyOf(outputs);
+		derived = new Derived();
+	}
+
+	public PatternData(Identifier mode, List<Entry> inputs, List<Entry> outputs) {
+		this(mode, inputs, outputs, null);
+	}
+
+	/**
+	 * Values computed once per pattern instance: patterns are compared, hashed and totalled in every job tick and planner
+	 * step. Patterns are immutable, so the cache never goes stale.
+	 */
+	public static final class Derived {
+		private volatile int hash;
+		private volatile Boolean substitutes;
+		private volatile Map<ItemKey, Long> inputTotals, outputTotals;
+		private volatile ItemKey primaryKey;
+
+		private Derived() {}
+
+		@Override
+		public String toString() {
+			return "";
+		}
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		return this == o || o instanceof PatternData d && hashCode() == d.hashCode() && mode.equals(d.mode) && inputs.equals(d.inputs) && outputs.equals(d.outputs);
+	}
+
+	@Override
+	public int hashCode() {
+		int h = derived.hash;
+		if (h == 0) {
+			h = (mode.hashCode() * 31 + inputs.hashCode()) * 31 + outputs.hashCode();
+			if (h == 0) h = 1;
+			derived.hash = h;
+		}
+		return h;
 	}
 
 	public boolean isValid() {
@@ -133,6 +177,12 @@ public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outpu
 
 	/** Inputs used up per craft, without the mode's {@linkplain PatternMode#optionalInput optional inputs} (e.g. fuel). */
 	public Map<ItemKey, Long> inputTotals() {
+		Map<ItemKey, Long> c = derived.inputTotals;
+		if (c == null) derived.inputTotals = c = java.util.Collections.unmodifiableMap(computeInputTotals());
+		return c;
+	}
+
+	private Map<ItemKey, Long> computeInputTotals() {
 		PatternMode m = modeType();
 		Map<ItemKey, Long> t = new LinkedHashMap<>();
 		for (int i = 0; i < inputs.size(); i++) {
@@ -151,7 +201,9 @@ public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outpu
 	}
 
 	public Map<ItemKey, Long> outputTotals() {
-		return totals(outputs);
+		Map<ItemKey, Long> c = derived.outputTotals;
+		if (c == null) derived.outputTotals = c = java.util.Collections.unmodifiableMap(totals(outputs));
+		return c;
 	}
 
 	private static Map<ItemKey, Long> totals(List<Entry> list) {
@@ -216,6 +268,17 @@ public record PatternData(Identifier mode, List<Entry> inputs, List<Entry> outpu
 
 	private static Component entryLine(long count, ItemStack item) {
 		return Component.translatable("tooltip.tsautocraft.pattern.entry", count, item.getHoverName()).withStyle(ChatFormatting.GRAY);
+	}
+
+	/** Key of {@link #primaryOutput()}, null without outputs. */
+	public ItemKey primaryKey() {
+		ItemKey k = derived.primaryKey;
+		if (k == null) {
+			ItemStack p = primaryOutput();
+			if (p.isEmpty()) return null;
+			derived.primaryKey = k = new ItemKey(p);
+		}
+		return k;
 	}
 
 	public ItemStack primaryOutput() {

@@ -21,13 +21,15 @@ import eu.sytxlabs.tsautocraft.util.ItemKey;
  */
 public final class TsAutocraftApi {
 	/** Raised on incompatible API changes. */
-	public static final int VERSION = 1;
+	public static final int VERSION = 2;
 
 	private TsAutocraftApi() {}
 
 	/** Items the Pattern Providers and Crafting Emitters on the network can craft. */
 	public static List<ItemStack> craftables(Level level, BlockPos pos) {
-		return TerminalCrafting.craftables(level, pos);
+		List<ItemStack> l = new java.util.ArrayList<>();
+		for (ItemStack st : TerminalCrafting.craftables(level, pos)) l.add(st.copy()); // the cached list is shared
+		return l;
 	}
 
 	/** Running jobs of all job owners on the network. */

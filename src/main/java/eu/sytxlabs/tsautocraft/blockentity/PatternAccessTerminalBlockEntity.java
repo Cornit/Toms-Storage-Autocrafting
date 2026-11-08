@@ -51,14 +51,16 @@ public class PatternAccessTerminalBlockEntity extends PlatformBlockEntity implem
 		for (CraftingProvider p : network.providers(level, worldPosition)) {
 			if (p instanceof PatternProviderBlockEntity pp && level.getBlockEntity(pp.getBlockPos()) == pp) out.add(pp);
 		}
-		out.sort(Comparator.comparing((PatternProviderBlockEntity p) -> providerName(p).getString()).thenComparing(PatternProviderBlockEntity::getBlockPos));
+		// Resolve every name once, not in each comparison
+		java.util.Map<PatternProviderBlockEntity, String> names = new java.util.IdentityHashMap<>();
+		for (PatternProviderBlockEntity p : out) names.put(p, providerName(p).getString());
+		out.sort(Comparator.comparing((PatternProviderBlockEntity p) -> names.get(p)).thenComparing(PatternProviderBlockEntity::getBlockPos));
 		return out;
 	}
 
-	/** Anvil name of the provider, else its block name. */
+	/** Anvil name of the provider, else the machine(s) it supplies, else its block name. */
 	public static Component providerName(PatternProviderBlockEntity p) {
-		Component c = p.customName();
-		return c != null ? c : p.getBlockState().getBlock().getName();
+		return p.listName();
 	}
 
 	public boolean isConnected() {

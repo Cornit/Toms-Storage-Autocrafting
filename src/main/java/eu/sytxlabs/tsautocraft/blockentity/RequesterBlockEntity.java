@@ -57,6 +57,8 @@ public class RequesterBlockEntity extends PlatformBlockEntity implements Tickabl
 	private final int[] amounts = new int[ENTRIES];
 	private final CraftingJob[] jobs = new CraftingJob[ENTRIES];
 	private final int[] cooldown = new int[ENTRIES];
+	/** Failed plans in a row per entry: the cooldown doubles each time (up to 8x), see {@link #failPlan}. */
+	private final int[] planFails = new int[ENTRIES];
 	private final int[] status = new int[ENTRIES];
 	private final ItemStack[] statusItem = new ItemStack[ENTRIES];
 	private final NetworkLink network = new NetworkLink();
@@ -83,7 +85,7 @@ public class RequesterBlockEntity extends PlatformBlockEntity implements Tickabl
 	public void setAmount(int i, int amount) {
 		if (i < 0 || i >= ENTRIES) return;
 		amounts[i] = Math.clamp(amount, 0, MAX_AMOUNT);
-		cooldown[i] = 0;
+		cooldown[i] = planFails[i] = 0;
 		setChanged();
 	}
 
@@ -158,6 +160,7 @@ public class RequesterBlockEntity extends PlatformBlockEntity implements Tickabl
 			if (outcome.ok()) {
 				nextId++;
 				jobs[i] = outcome.job();
+				planFails[i] = 0;
 				JobScheduler.started(this, jobs[i]);
 				setStatus(i, ST_CRAFTING, ItemStack.EMPTY);
 				setChanged();
@@ -169,10 +172,15 @@ public class RequesterBlockEntity extends PlatformBlockEntity implements Tickabl
 					ItemKey first = outcome.missing().keySet().iterator().next();
 					setStatus(i, ST_MISSING, first.create(1));
 				}
-				cooldown[i] = 5;
+				failPlan(i);
 			}
 		}
 		if (runJobs && !activeJobs().isEmpty()) JobScheduler.submit(this);
+	}
+
+	private void failPlan(int i) {
+		cooldown[i] = 5 << Math.min(planFails[i], 3);
+		if (planFails[i] < 3) planFails[i]++;
 	}
 
 	@Override

@@ -81,6 +81,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 	public static final int MAX_SETS = 64;
 	private final UpgradeContainer upgrades = new UpgradeContainer(UPGRADE_SLOTS, Upgrades.PATTERN_PROVIDER, () -> {
 		this.patternCache = null;
+		eu.sytxlabs.tsautocraft.network.NetworkCache.patternsChanged();
 		this.setChanged();
 	});
 
@@ -99,12 +100,13 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		public void setChanged() {
 			super.setChanged();
 			patternCache = null;
+			eu.sytxlabs.tsautocraft.network.NetworkCache.patternsChanged();
 			PatternProviderBlockEntity.this.setChanged();
 		}
 	};
 	private List<PatternData> patternCache;
+	private java.util.Set<PatternData> patternSet = java.util.Set.of();
 	private boolean blocking = true;
-	private boolean substitutes;
 	private int pulse;
 	/** Redstone signal ticks left per side (index = direction from the provider to the machine). */
 	private final int[] signalTicks = new int[6];
@@ -207,8 +209,16 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 				if (d != null) l.add(d);
 			}
 			patternCache = Collections.unmodifiableList(l);
+			patternSet = new java.util.HashSet<>(l);
 		}
 		return patternCache;
+	}
+
+	/** Set lookup (pattern hashes are cached): jobs ask this for every step and provider every tick. */
+	@Override
+	public boolean hasPattern(PatternData p) {
+		getPatterns();
+		return patternSet.contains(p);
 	}
 
 	public boolean isBlocking() {
@@ -217,16 +227,6 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 
 	public void setBlocking(boolean blocking) {
 		this.blocking = blocking;
-		setChanged();
-	}
-
-	/** Patterns encoded here with JEI's "+" get substitutes. */
-	public boolean isSubstitutes() {
-		return substitutes;
-	}
-
-	public void setSubstitutes(boolean substitutes) {
-		this.substitutes = substitutes;
 		setChanged();
 	}
 
@@ -248,6 +248,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 
 	public void setPriority(int priority) {
 		this.priority = Math.clamp(priority, MIN_PRIORITY, MAX_PRIORITY);
+		eu.sytxlabs.tsautocraft.network.NetworkCache.invalidate(); // provider order
 		setChanged();
 	}
 
@@ -312,12 +313,37 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 	private List<Direction> targetSides() {
 		BlockState st = getBlockState();
 		if (st.hasProperty(ConnectorNodeBlock.FACING)) return List.of(st.getValue(ConnectorNodeBlock.FACING));
+		int mask = targetMask();
 		List<Direction> l = new ArrayList<>(6);
 		for (int i = 0; i < 6; i++) {
-			Direction d = Direction.from3DDataValue((nextSide + i) % 6);
-			if (isTarget(d)) l.add(d);
+			int d = (nextSide + i) % 6;
+			if ((mask & 1 << d) != 0) l.add(Direction.from3DDataValue(d));
 		}
 		return l;
+	}
+
+	private int targetMask = -1;
+	private long targetMaskTime;
+
+	/**
+	 * Bit per 3D data value of the sides with a machine (full block). Looking up storages and the network on every
+	 * dispatch attempt is expensive, so it is cached for 20 ticks and dropped on neighbor changes.
+	 */
+	private int targetMask() {
+		long now = level.getGameTime();
+		if (targetMask < 0 || now < targetMaskTime || now - targetMaskTime >= 20) {
+			int m = 0;
+			for (Direction d : Direction.values()) if (isTarget(d)) m |= 1 << d.get3DDataValue();
+			targetMask = m;
+			targetMaskTime = now;
+		}
+		return targetMask;
+	}
+
+	/** A neighbor changed: look for machines again on the next use. */
+	public void invalidateTargets() {
+		targetMask = -1;
+		targetNameCache = null;
 	}
 
 	private boolean isTarget(Direction d) {
@@ -367,15 +393,13 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		PatternMode.Outcome r = PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
 		DispatchResult fail = DispatchResult.NO_TARGET;
 		boolean track = TsAutocraftConfig.get().returnInputsOnCancel;
-		boolean clean = false;
 		for (Direction side : targetSides()) {
 			// Locked, or the machine profile wants a pause between deliveries (e.g. water source flowing back)
 			if (locked(side.ordinal(), now) || now - lastDelivery[side.ordinal()] < MachineProfiles.find(level.getBlockState(worldPosition.relative(side))).cooldown()) {
 				if (fail == DispatchResult.NO_TARGET) fail = DispatchResult.BUSY;
 				continue;
 			}
-			clean = track && !holdsInputs(side, p);
-			ctx = new Context(net, available, sets(wanted), side);
+			ctx = new Context(net, available, sets(wanted), side, track ? p : null);
 			try {
 				r = p.modeType().dispatch(ctx, p);
 			} catch (StorageUtil.LeftoverException e) {
@@ -411,7 +435,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		}
 		// Cancel cleanup: whose inputs are in the machine on this side?
 		if (track) {
-			if (clean) {
+			if (ctx.clean) {
 				sideJob[si] = jobUid;
 				sidePattern[si] = p;
 				sideCrafts[si] = 0;
@@ -438,7 +462,13 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		private final Direction side;
 		final List<ItemStack> pulled = new ArrayList<>();
 
-		Context(IInventoryAccess net, ToLongFunction<ItemKey> available, int sets, Direction side) {
+		/** Pattern to check for "machine held none of its inputs before this delivery" (cancel cleanup), null = not tracked. */
+		private final PatternData track;
+		boolean clean;
+		private boolean checkedClean;
+
+		Context(IInventoryAccess net, ToLongFunction<ItemKey> available, int sets, Direction side, PatternData track) {
+			this.track = track;
 			this.net = net;
 			this.available = available;
 			this.sets = sets;
@@ -490,6 +520,11 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 			Map<ItemKey, Long> totals = new java.util.HashMap<>();
 			for (ItemStack w : wanted) if (!w.isEmpty()) totals.merge(new ItemKey(w), (long) w.getCount(), Long::sum);
 			for (var e : totals.entrySet()) if (available.applyAsLong(e.getKey()) < e.getValue()) return null;
+			// Only checked when a delivery really goes out (most attempts fail before), and before anything is inserted
+			if (!checkedClean) {
+				checkedClean = true;
+				clean = track != null && !holdsInputs(side, track);
+			}
 			List<ItemStack> got;
 			try {
 				got = StorageUtil.pullAll(net, level, wanted);
@@ -505,7 +540,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 
 		@Override
 		public void giveBack(ItemStack stack) {
-			ItemStack rest = net.pushStack(stack);
+			ItemStack rest = StorageUtil.push(net, stack);
 			if (!rest.isEmpty()) buffer.add(rest);
 		}
 
@@ -708,7 +743,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		for (int i = 0; i < crafter.getContainerSize(); i++) {
 			ItemStack st = crafter.getItem(i);
 			if (st.isEmpty()) continue;
-			ItemStack rest = net.pushStack(st.copy());
+			ItemStack rest = StorageUtil.push(net, st.copy());
 			crafter.setItem(i, rest);
 		}
 		crafter.setChanged();
@@ -774,7 +809,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		for (int s = 0; s < crafter.getContainerSize(); s++) {
 			ItemStack st = crafter.getItem(s);
 			if (st.isEmpty()) continue;
-			ItemStack rest = net.pushStack(st.copy());
+			ItemStack rest = StorageUtil.push(net, st.copy());
 			n += st.getCount() - rest.getCount();
 			crafter.setItem(s, rest);
 		}
@@ -792,7 +827,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		int per = Math.max(1, want.getCount());
 		int take = (int) Math.min(cur.getCount() / per, crafts) * per;
 		if (take <= 0) return 0;
-		ItemStack rest = net.pushStack(cur.copyWithCount(take));
+		ItemStack rest = StorageUtil.push(net, cur.copyWithCount(take));
 		int moved = take - rest.getCount();
 		furnace.setItem(0, cur.copyWithCount(cur.getCount() - moved));
 		furnace.setChanged();
@@ -824,23 +859,30 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		long n = 0;
 		for (ItemStack st : out) {
 			int c = st.getCount();
-			ItemStack rest = net.pushStack(st);
+			ItemStack rest = StorageUtil.push(net, st);
 			n += c - rest.getCount();
 			if (!rest.isEmpty()) buffer.add(rest);
 		}
 		return n;
 	}
 
+	private long lastFlush = Long.MIN_VALUE;
+
+	/** Puts buffered items back into the network, at most once per tick (a full network would be tried on every dispatch). */
 	private void flushBuffer(IInventoryAccess net) {
-		if (net == PlatformInventoryAccess.EMPTY) return;
+		if (net == PlatformInventoryAccess.EMPTY || level == null || level.getGameTime() == lastFlush) return;
+		lastFlush = level.getGameTime();
 		List<ItemStack> keep = new ArrayList<>();
+		boolean moved = false;
 		for (ItemStack st : buffer) {
-			ItemStack rest = net.pushStack(st);
+			int before = st.getCount();
+			ItemStack rest = StorageUtil.push(net, st);
+			if (rest.getCount() != before) moved = true;
 			if (!rest.isEmpty()) keep.add(rest);
 		}
 		buffer.clear();
 		buffer.addAll(keep);
-		setChanged();
+		if (moved) setChanged();
 	}
 
 	/** Redstone signal from the provider to the machine on {@code toward} ("redstone" trigger mode, Redstone Upgrade, machine profile). */
@@ -865,7 +907,8 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 	private void setPowered(boolean powered) {
 		BlockState st = getBlockState();
 		if (st.hasProperty(PatternProviderBlock.POWERED) && st.getValue(PatternProviderBlock.POWERED) != powered && level != null) {
-			level.setBlock(worldPosition, st.setValue(PatternProviderBlock.POWERED, powered), 3);
+			// Only the look: the signal itself is announced by signal() / updateServer() with updateNeighborsAt
+			level.setBlock(worldPosition, st.setValue(PatternProviderBlock.POWERED, powered), net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
 		}
 	}
 
@@ -879,7 +922,6 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		var buf = out.list("Buffer", ItemStack.CODEC);
 		buffer.forEach(buf::add);
 		out.putBoolean("Blocking", blocking);
-		out.putBoolean("Substitutes", substitutes);
 		out.putIntArray("PendingTriggers", pendingTriggers);
 		out.putInt("LockMode", lockMode.ordinal());
 		out.putInt("Priority", priority);
@@ -897,7 +939,6 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		buffer.clear();
 		in.listOrEmpty("Buffer", ItemStack.CODEC).stream().forEach(buffer::add);
 		blocking = in.getBooleanOr("Blocking", true);
-		substitutes = in.getBooleanOr("Substitutes", false);
 		java.util.Arrays.fill(pendingTriggers, 0);
 		in.getIntArray("PendingTriggers").ifPresent(a -> System.arraycopy(a, 0, pendingTriggers, 0, Math.min(6, a.length)));
 		lockMode = LockMode.byId(in.getIntOr("LockMode", 0));
@@ -910,6 +951,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 			awaitSince[a.side()] = a.since();
 		});
 		patternCache = null;
+		eu.sytxlabs.tsautocraft.network.NetworkCache.patternsChanged();
 	}
 
 	@Override
@@ -945,7 +987,48 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 
 	@Override
 	public Component providerName() {
-		return customName.get();
+		return listName();
+	}
+
+	private Component targetNameCache;
+	private long targetNameTime = Long.MIN_VALUE;
+
+	/**
+	 * Name in lists and job status: the anvil name, else the name(s) of the machine(s) it supplies (in a fixed side
+	 * order), else the own block name. Machine names are cached for 20 ticks.
+	 */
+	public Component listName() {
+		Component c = customName.get();
+		if (c != null) return c;
+		if (level == null) return getBlockState().getBlock().getName();
+		long now = level.getGameTime();
+		if (targetNameCache == null || now < targetNameTime || now - targetNameTime >= 20) {
+			targetNameCache = computeTargetName();
+			targetNameTime = now;
+		}
+		return targetNameCache;
+	}
+
+	private Component computeTargetName() {
+		BlockState st = getBlockState();
+		List<Direction> sides = new ArrayList<>(6);
+		if (st.hasProperty(ConnectorNodeBlock.FACING)) {
+			Direction d = st.getValue(ConnectorNodeBlock.FACING);
+			if (!level.getBlockState(worldPosition.relative(d)).isAir()) sides.add(d);
+		} else {
+			int mask = targetMask();
+			for (Direction d : Direction.values()) if ((mask & 1 << d.get3DDataValue()) != 0) sides.add(d);
+		}
+		MutableComponent names = null;
+		List<net.minecraft.world.level.block.Block> seen = new ArrayList<>(6);
+		for (Direction d : sides) {
+			net.minecraft.world.level.block.Block b = level.getBlockState(worldPosition.relative(d)).getBlock();
+			if (seen.contains(b)) continue;
+			seen.add(b);
+			if (names == null) names = Component.empty().append(b.getName());
+			else names.append(", ").append(b.getName());
+		}
+		return names != null ? names : st.getBlock().getName();
 	}
 
 	@Override

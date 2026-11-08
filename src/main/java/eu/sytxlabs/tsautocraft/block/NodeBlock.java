@@ -78,6 +78,7 @@ public class NodeBlock extends BaseEntityBlock implements IInventoryCable {
 	protected void neighborChanged(BlockState state, Level level, BlockPos pos, Block block, @Nullable Orientation orientation, boolean moved) {
 		super.neighborChanged(state, level, pos, block, orientation, moved);
 		if (!level.isClientSide()) {
+			if (level.getBlockEntity(pos) instanceof eu.sytxlabs.tsautocraft.blockentity.PatternProviderBlockEntity p) p.invalidateTargets();
 			InventoryCableNetwork n = InventoryCableNetwork.getNetwork(level);
 			n.markNodeInvalid(pos);
 			if (orientation != null) {

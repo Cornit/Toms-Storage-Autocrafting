@@ -80,6 +80,15 @@ public class CraftingJob {
 			need = have = 0;
 		}
 
+		/** Enough usable stock for one craft? Patterns with substitutes may mix options per position: left to the provider. */
+		boolean canCraftOnce(ToLongFunction<ItemKey> available) {
+			if (pattern.hasSubstitutes()) return true;
+			for (var e : pattern.inputTotals().entrySet()) {
+				if (available.applyAsLong(e.getKey()) < e.getValue()) return false;
+			}
+			return true;
+		}
+
 		private boolean hasSubstituteFor(ItemKey key, long count, ToLongFunction<ItemKey> available) {
 			for (PatternData.Entry en : pattern.inputs()) {
 				if (en.isEmpty() || !key.matches(en.item())) continue;
@@ -115,12 +124,19 @@ public class CraftingJob {
 	public final int id;
 	public final int uid = NEXT_UID.incrementAndGet();
 	public final ItemStack target;
+	private ItemKey targetKey;
 	public final long amount;
 	private final List<Step> steps;
 	private State state;
 	private final long baseline;
 	private int waitTicks;
 	private final Map<ItemKey, Long> reserved = new LinkedHashMap<>();
+	/** Bumped on every change of any job's reservations, so {@link Reservations} can cache its totals. */
+	private static int reservationVersion;
+
+	public static int reservationVersion() {
+		return reservationVersion;
+	}
 	private boolean tracked;
 	private long lastCount = -1;
 	private int idleTicks;
@@ -179,6 +195,7 @@ public class CraftingJob {
 	public void setPaused(boolean paused) {
 		if (isFinished()) return;
 		this.paused = paused;
+		reservationVersion++;
 		setReason(paused ? Reason.PAUSED : Reason.NONE, ItemStack.EMPTY);
 	}
 
@@ -285,25 +302,63 @@ public class CraftingJob {
 		return plan(id, level, net, providers, target, amount, res, true);
 	}
 
+	/**
+	 * Patterns by output plus stock and substitute choices, built once per planning (and shared by the binary search of
+	 * {@link #maxPossible}). Substitutes are resolved only for patterns the planner actually visits.
+	 */
+	private static final class PlanIndex {
+		final Map<ItemKey, List<PatternData>> byOutput = new HashMap<>();
+		final Map<ItemKey, Long> stockMemo = new HashMap<>();
+		final Map<PatternData, Map<ItemKey, Long>> resolved = new HashMap<>();
+		final ToLongFunction<ItemKey> stock;
+		/** Second try: substitutes prefer an option that can be crafted over one that is only partly in stock. */
+		final boolean preferCraftable;
+
+		PlanIndex(Level level, IInventoryAccess net, List<? extends CraftingProvider> providers, Reservations res) {
+			this(level, net, providers, res, false);
+		}
+
+		PlanIndex(Level level, IInventoryAccess net, List<? extends CraftingProvider> providers, Reservations res, boolean preferCraftable) {
+			this.preferCraftable = preferCraftable;
+			LinkedHashSet<PatternData> all = new LinkedHashSet<>();
+			for (CraftingProvider p : providers) {
+				for (PatternData d : p.getPatterns()) if (PlannerHooks.isCraftable(d.primaryOutput())) all.add(d);
+			}
+			for (PatternData d : all) {
+				for (ItemKey out : d.outputTotals().keySet()) byOutput.computeIfAbsent(out, _ -> new ArrayList<>()).add(d);
+			}
+			var order = PlannerHooks.patternOrder();
+			if (order != null) byOutput.values().forEach(l -> l.sort(order));
+			stock = k -> stockMemo.computeIfAbsent(k, x -> Math.max(0, StorageUtil.count(net, level, x) - res.total(x)));
+		}
+
+		Map<ItemKey, Long> inputsOf(PatternData d) {
+			if (!d.hasSubstitutes()) return d.inputTotals();
+			Map<ItemKey, Long> m = resolved.get(d);
+			if (m == null) resolved.put(d, m = resolvedInputs(d, stock, byOutput::containsKey, preferCraftable));
+			return m;
+		}
+
+		/** Did the plan pick substitutes anywhere (then a second try with {@link #preferCraftable} may succeed)? */
+		boolean usedSubstitutes() {
+			return !resolved.isEmpty();
+		}
+	}
+
 	private static PlanOutcome plan(int id, Level level, IInventoryAccess net, List<? extends CraftingProvider> providers, ItemStack target, long amount, Reservations res, boolean notify) {
-		Map<ItemKey, List<PatternData>> byOutput = new HashMap<>();
-		LinkedHashSet<PatternData> all = new LinkedHashSet<>();
-		for (CraftingProvider p : providers) {
-			for (PatternData d : p.getPatterns()) if (PlannerHooks.isCraftable(d.primaryOutput())) all.add(d);
+		PlanIndex first = new PlanIndex(level, net, providers, res);
+		PlanOutcome r = plan(id, level, net, first, target, amount, false);
+		if (!r.ok() && first.usedSubstitutes()) {
+			// e.g. a chest pattern with "any planks": no planks in stock, but oak planks can be crafted from logs
+			PlanIndex craftable = new PlanIndex(level, net, providers, res, true);
+			PlanOutcome second = plan(id, level, net, craftable, target, amount, false);
+			if (second.ok()) return notify ? plan(id, level, net, craftable, target, amount, true) : second; // again for event + tree
 		}
-		for (PatternData d : all) {
-			for (ItemKey out : d.outputTotals().keySet()) byOutput.computeIfAbsent(out, _ -> new ArrayList<>()).add(d);
-		}
-		var order = PlannerHooks.patternOrder();
-		if (order != null) byOutput.values().forEach(l -> l.sort(order));
+		return notify ? plan(id, level, net, first, target, amount, true) : r;
+	}
 
-		ToLongFunction<ItemKey> stock = k -> Math.max(0, StorageUtil.count(net, level, k) - res.total(k));
-		Map<PatternData, Map<ItemKey, Long>> inputs = new HashMap<>();
-		for (PatternData d : all) {
-			if (d.hasSubstitutes()) inputs.put(d, resolvedInputs(d, stock));
-		}
-
-		CraftingPlanner<ItemKey, PatternData> planner = new CraftingPlanner<>(stock, byOutput::get, d -> inputs.getOrDefault(d, d.inputTotals()), PatternData::outputTotals);
+	private static PlanOutcome plan(int id, Level level, IInventoryAccess net, PlanIndex index, ItemStack target, long amount, boolean notify) {
+		CraftingPlanner<ItemKey, PatternData> planner = new CraftingPlanner<>(index.stock, index.byOutput::get, index::inputsOf, PatternData::outputTotals);
 
 		ItemKey key = new ItemKey(target);
 		var result = planner.plan(key, amount, false, notify);
@@ -321,30 +376,53 @@ public class CraftingJob {
 
 	/** Largest amount below {@code amount} that can be crafted right now (binary search over complete plans), 0 if none. */
 	public static long maxPossible(Level level, IInventoryAccess net, List<? extends CraftingProvider> providers, ItemStack target, long amount, Reservations res) {
+		PlanIndex index = new PlanIndex(level, net, providers, res);
+		PlanIndex craftable = null;
 		long lo = 0, hi = amount - 1;
 		while (lo < hi) {
 			long mid = (lo + hi + 1) >>> 1;
-			if (plan(0, level, net, providers, target, mid, res, false).ok()) lo = mid;
+			boolean ok = plan(0, level, net, index, target, mid, false).ok();
+			if (!ok && index.usedSubstitutes()) {
+				if (craftable == null) craftable = new PlanIndex(level, net, providers, res, true);
+				ok = plan(0, level, net, craftable, target, mid, false).ok();
+			}
+			if (ok) lo = mid;
 			else hi = mid - 1;
 		}
 		return lo;
 	}
 
-	/** Input totals with every position replaced by its best-stocked option (the item itself on a tie). */
-	private static Map<ItemKey, Long> resolvedInputs(PatternData d, java.util.function.ToLongFunction<ItemKey> stock) {
+	/**
+	 * Input totals with every position replaced by one option: the best-stocked one (the item itself on a tie); with none in
+	 * stock, the first one that can be crafted. With {@code preferCraftable}, a craftable option wins over stock of a
+	 * non-craftable one (the stocked amount may not be enough for the whole job).
+	 */
+	private static Map<ItemKey, Long> resolvedInputs(PatternData d, ToLongFunction<ItemKey> stock, java.util.function.Predicate<ItemKey> craftable, boolean preferCraftable) {
 		Map<ItemKey, Long> m = new LinkedHashMap<>();
 		var mode = d.modeType();
 		for (int i = 0; i < d.inputs().size(); i++) {
 			PatternData.Entry e = d.inputs().get(i);
 			if (e.isEmpty() || mode.optionalInput(d, i)) continue; // e.g. fuel: delivered when needed, not planned
-			ItemKey best = new ItemKey(e.item());
-			long bestStock = stock.applyAsLong(best);
-			for (ItemStack alt : e.alternatives()) {
-				ItemKey k = new ItemKey(alt);
-				long s = stock.applyAsLong(k);
-				if (s > bestStock) {
+			List<ItemKey> options = new ArrayList<>(1 + e.alternatives().size());
+			options.add(new ItemKey(e.item()));
+			for (ItemStack alt : e.alternatives()) options.add(new ItemKey(alt));
+			ItemKey best = null;
+			long bestScore = -1;
+			for (ItemKey k : options) {
+				// Score: stock, plus a bonus above any stock for craftable options in the second try
+				long score = stock.applyAsLong(k);
+				if (preferCraftable && craftable.test(k)) score = score + Long.MAX_VALUE / 2;
+				if (score > bestScore) {
 					best = k;
-					bestStock = s;
+					bestScore = score;
+				}
+			}
+			if (bestScore == 0) {
+				for (ItemKey k : options) {
+					if (craftable.test(k)) {
+						best = k;
+						break;
+					}
 				}
 			}
 			m.merge(best, (long) e.count(), Long::sum);
@@ -384,7 +462,7 @@ public class CraftingJob {
 		if (state == State.WAITING) {
 			waitTicks += elapsedTicks;
 			boolean allArrived = steps.stream().allMatch(s -> s.inFlight <= 0);
-			long count = StorageUtil.count(net, level, new ItemKey(target));
+			long count = StorageUtil.count(net, level, targetKey());
 			if (count > lastCount) idleTicks = 0;
 			else idleTicks += elapsedTicks;
 			lastCount = count;
@@ -412,7 +490,18 @@ public class CraftingJob {
 			boolean anyProvider = false;
 			boolean stepProgressed = false;
 			Reason stepWhy = Reason.NONE;
-			for (CraftingProvider prov : providers) {
+			// Not even one craft possible: every provider would only count the inputs again and say MISSING
+			if (!step.canCraftOnce(available)) {
+				for (CraftingProvider prov : providers) {
+					if (!prov.hasPattern(step.pattern)) continue;
+					anyProvider = true;
+					stepWhy = Reason.WAITING_ITEMS;
+					step.provider = prov.providerPos();
+					step.providerName = prov.providerName();
+					step.missingInput(level, net, available);
+					break;
+				}
+			} else for (CraftingProvider prov : providers) {
 				if (step.remaining <= 0) break;
 				if (!prov.hasPattern(step.pattern)) continue;
 				anyProvider = true;
@@ -455,6 +544,7 @@ public class CraftingJob {
 		if (steps.stream().allMatch(s -> s.remaining <= 0)) {
 			state = State.WAITING;
 			reserved.clear(); // everything is pulled; leftovers (surplus) are free again
+			reservationVersion++;
 			waitTicks = 0;
 			idleTicks = 0;
 			lastCount = -1;
@@ -466,10 +556,16 @@ public class CraftingJob {
 		}
 	}
 
+	private ItemKey targetKey() {
+		if (targetKey == null) targetKey = new ItemKey(target);
+		return targetKey;
+	}
+
 	private void finish(State end) {
 		if (isFinished()) return;
 		state = end;
 		reserved.clear();
+		reservationVersion++;
 		paused = false;
 		setReason(Reason.NONE, ItemStack.EMPTY);
 		CraftingEvents.JOB_FINISHED.invoker().onFinished(this, end == State.CANCELLED);
@@ -484,8 +580,7 @@ public class CraftingJob {
 		long used = 0;
 		for (Step s : steps) {
 			if (s.inFlight <= 0 || used >= count) continue;
-			ItemStack primary = s.pattern.primaryOutput();
-			if (primary.isEmpty() || !key.equals(new ItemKey(primary))) continue;
+			if (!key.equals(s.pattern.primaryKey())) continue;
 			long per = Math.max(1, s.pattern.outputTotals().getOrDefault(key, 1L));
 			long take = Math.min(s.inFlight * per - s.partial, count - used);
 			if (take <= 0) continue;
@@ -499,7 +594,10 @@ public class CraftingJob {
 		if (used > 0) {
 			tracked = true;
 			waitTicks = 0;
-			if (!key.equals(new ItemKey(target)) && needsLater(key)) reserved.merge(key, used, Long::sum);
+			if (!key.equals(targetKey()) && needsLater(key)) {
+				reserved.merge(key, used, Long::sum);
+				reservationVersion++;
+			}
 		}
 		return used;
 	}
@@ -509,8 +607,7 @@ public class CraftingJob {
 		long since = Long.MAX_VALUE;
 		for (Step s : steps) {
 			if (s.inFlight <= 0) continue;
-			ItemStack primary = s.pattern.primaryOutput();
-			if (!primary.isEmpty() && key.equals(new ItemKey(primary))) since = Math.min(since, s.flightSince == Long.MAX_VALUE ? 0 : s.flightSince);
+			if (key.equals(s.pattern.primaryKey())) since = Math.min(since, s.flightSince == Long.MAX_VALUE ? 0 : s.flightSince);
 		}
 		return since;
 	}
@@ -535,6 +632,7 @@ public class CraftingJob {
 		if (cur == null) return;
 		if (cur <= n) reserved.remove(k);
 		else reserved.put(k, cur - n);
+		reservationVersion++;
 	}
 
 	/** Crafts of {@code p} not finished yet (dispatched or not), used by the Crafting Emitter. */
@@ -565,6 +663,7 @@ public class CraftingJob {
 		if (state == State.DONE) return;
 		if (isFinished()) {
 			reserved.clear();
+			reservationVersion++;
 			return;
 		}
 		boolean inMachines = hasInFlight();

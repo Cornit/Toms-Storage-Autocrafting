@@ -81,11 +81,13 @@ public class CraftingEmitterBlockEntity extends PaintedBlockEntity implements Ti
 	public void cycleMode() {
 		mode = (mode + 1) % MODES;
 		pattern = null;
+		eu.sytxlabs.tsautocraft.network.NetworkCache.patternsChanged();
 		setChanged();
 	}
 
 	private void onItemChanged() {
 		pattern = null;
+		eu.sytxlabs.tsautocraft.network.NetworkCache.patternsChanged();
 		setChanged();
 	}
 
@@ -121,10 +123,7 @@ public class CraftingEmitterBlockEntity extends PaintedBlockEntity implements Ti
 		if (st.isEmpty()) return false;
 		if (mode == MODE_CRAFT) {
 			PatternData p = pattern();
-			for (var be : TerminalCrafting.networkBlockEntities(level, worldPosition)) {
-				if (!(be instanceof JobOwner o)) continue;
-				for (CraftingJob j : o.activeJobs()) if (j.pendingFor(p) > 0) return true;
-			}
+			for (CraftingJob j : eu.sytxlabs.tsautocraft.network.NetworkCache.of(level, worldPosition).jobs(level)) if (j.pendingFor(p) > 0) return true;
 			return false;
 		}
 		IInventoryAccess net = network.access(level, worldPosition);
@@ -155,6 +154,7 @@ public class CraftingEmitterBlockEntity extends PaintedBlockEntity implements Ti
 		amount = in.getIntOr("Amount", 1);
 		mode = Math.clamp(in.getIntOr("Mode", MODE_BELOW), 0, MODES - 1);
 		pattern = null;
+		eu.sytxlabs.tsautocraft.network.NetworkCache.patternsChanged();
 	}
 
 	@Override

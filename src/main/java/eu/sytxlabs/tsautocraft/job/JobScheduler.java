@@ -36,6 +36,7 @@ public final class JobScheduler {
 
 	public static void started(JobOwner owner, CraftingJob job) {
 		if (owner instanceof BlockEntity be) job.bind(be.getLevel(), be.getBlockPos());
+		eu.sytxlabs.tsautocraft.network.NetworkCache.jobsChanged();
 		CraftingEvents.JOB_STARTED.invoker().onStarted(job, owner);
 	}
 

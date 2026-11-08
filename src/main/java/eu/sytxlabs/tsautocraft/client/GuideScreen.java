@@ -304,7 +304,14 @@ public class GuideScreen extends Screen {
 		return hovered;
 	}
 
+	/** Parsed diagram cells (drawn every frame). Read only stacks. */
+	private static final java.util.Map<String, ItemStack> DIAGRAM_ITEMS = new java.util.HashMap<>();
+
 	private static ItemStack diagramItem(String cell) {
+		return DIAGRAM_ITEMS.computeIfAbsent(cell, GuideScreen::parseDiagramItem);
+	}
+
+	private static ItemStack parseDiagramItem(String cell) {
 		String id = cell.startsWith("mc:") ? "minecraft:" + cell.substring(3) : cell.startsWith("ts:") ? "toms_storage:" + cell.substring(3) : cell.startsWith("ac:") ? "tsautocraft:" + cell.substring(3) : cell;
 		Identifier key = Identifier.tryParse(id);
 		if (key == null) return ItemStack.EMPTY;

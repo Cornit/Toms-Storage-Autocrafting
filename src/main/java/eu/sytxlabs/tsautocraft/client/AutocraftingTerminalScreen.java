@@ -87,7 +87,14 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		minecraft.gui.setScreen(new CraftRequestScreen(this, selected, parseAmount()));
 	}
 
+	/** Tooltips and row texts per synced job/history entry (new instances with every update), built once instead of every frame. */
+	private final java.util.Map<Object, List<Component>> tooltipCache = new java.util.IdentityHashMap<>();
+	private final java.util.Map<Object, String> rowCache = new java.util.IdentityHashMap<>();
+	private static final java.time.format.DateTimeFormatter WHEN = java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT);
+
 	private void onUpdate() {
+		tooltipCache.clear();
+		rowCache.clear();
 		if (!selected.isEmpty() && menu.craftables.stream().noneMatch(c -> ItemStack.isSameItemSameComponents(c.item(), selected))) {
 			selected = ItemStack.EMPTY;
 		}
@@ -231,9 +238,9 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 			graphics.setTooltipForNextFrame(font, menu.craftables.get(idx).item(), mouseX, mouseY);
 		}
 		JobView hovered = jobAt(mouseX - leftPos, mouseY - topPos);
-		if (hovered != null) graphics.setComponentTooltipForNextFrame(font, jobTooltip(hovered), mouseX, mouseY);
+		if (hovered != null) graphics.setComponentTooltipForNextFrame(font, tooltipCache.computeIfAbsent(hovered, _ -> jobTooltip(hovered)), mouseX, mouseY);
 		JobHistoryEntry past = historyAt(mouseX - leftPos, mouseY - topPos);
-		if (past != null) graphics.setComponentTooltipForNextFrame(font, historyTooltip(past), mouseX, mouseY);
+		if (past != null) graphics.setComponentTooltipForNextFrame(font, tooltipCache.computeIfAbsent(past, _ -> historyTooltip(past)), mouseX, mouseY);
 		Component tab = tabTooltip(mouseX - leftPos, mouseY - topPos);
 		if (tab != null) graphics.setTooltipForNextFrame(font, tab, mouseX, mouseY);
 		Component button = jobButtonTooltip(mouseX - leftPos, mouseY - topPos);
@@ -273,7 +280,7 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		lines.add(Component.translatable("label.tsautocraft.history.crafts", h.done(), h.total()).withStyle(net.minecraft.ChatFormatting.GRAY));
 		if (h.ticks() >= 0) lines.add(Component.translatable("label.tsautocraft.history.duration", JobText.duration(h.ticks() / 20)).withStyle(net.minecraft.ChatFormatting.GRAY));
 		if (h.endMillis() > 0) {
-			String when = java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT).format(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(h.endMillis()), java.time.ZoneId.systemDefault()));
+			String when = WHEN.format(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(h.endMillis()), java.time.ZoneId.systemDefault()));
 			lines.add(Component.translatable("label.tsautocraft.history.ended", when).withStyle(net.minecraft.ChatFormatting.GRAY));
 		}
 		if (h.automatic()) lines.add(Component.translatable("label.tsautocraft.history.automatic").withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
@@ -314,7 +321,10 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 			String key = "reason.tsautocraft." + r.name().toLowerCase(java.util.Locale.ROOT);
 			c = st.reasonItem().isEmpty() ? Component.translatable(key) : Component.translatable(key, st.reasonItem().getHoverName());
 		}
-		if (st.providerName().isPresent()) c.append(" ").append(Component.translatable("label.tsautocraft.at_provider", st.providerName().get()));
+		if (st.providerName().isPresent() && st.provider().isPresent()) {
+			net.minecraft.core.BlockPos p = st.provider().get();
+			c.append(" ").append(Component.translatable("label.tsautocraft.at_provider_pos", st.providerName().get(), p.getX(), p.getY(), p.getZ()));
+		} else if (st.providerName().isPresent()) c.append(" ").append(Component.translatable("label.tsautocraft.at_provider", st.providerName().get()));
 		else st.provider().ifPresent(p -> c.append(" ").append(Component.translatable("label.tsautocraft.at_pos", p.getX(), p.getY(), p.getZ())));
 		return c;
 	}
@@ -374,9 +384,8 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		for (int i = 0; i < visible.size(); i++) {
 			JobView j = visible.get(i);
 			int y = JOBS_Y + i * JOB_H + 1;
-			Component lineText = JobText.line(j);
 			int color = j.paused() ? 0xFF808080 : j.requester() ? 0xFF1F3F8F : 0xFF303030;
-			g.text(font, font.plainSubstrByWidth(lineText.getString(), LINE_W), 8, y, color, false);
+			g.text(font, rowCache.computeIfAbsent(j, _ -> font.plainSubstrByWidth(JobText.line(j).getString(), LINE_W)), 8, y, color, false);
 			if (j.state() <= CraftingJob.State.WAITING.ordinal()) {
 				String prio = j.priority() > 0 ? "↑" : j.priority() < 0 ? "↓" : "·";
 				g.text(font, prio, PRIO_X + 1, y, j.priority() > 0 ? 0xFF2E9E2E : j.priority() < 0 ? 0xFF8B6B00 : 0xFF707070, false);
@@ -401,9 +410,12 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		for (int i = 0; i < visible.size(); i++) {
 			JobHistoryEntry h = visible.get(i);
 			int y = JOBS_Y + i * JOB_H + 1;
-			Component result = Component.translatable(h.cancelled() ? "status.tsautocraft.cancelled" : "status.tsautocraft.done");
-			Component text = h.ticks() >= 0 ? Component.translatable("label.tsautocraft.history.line_time", h.amount(), h.target().getHoverName(), result, JobText.duration(h.ticks() / 20)) : Component.translatable("label.tsautocraft.history.line", h.amount(), h.target().getHoverName(), result);
-			g.text(font, font.plainSubstrByWidth(text.getString(), 170 - 8), 8, y, h.cancelled() ? 0xFF8B0000 : h.automatic() ? 0xFF1F3F8F : 0xFF1E6E1E, false);
+			String text = rowCache.computeIfAbsent(h, _ -> {
+				Component result = Component.translatable(h.cancelled() ? "status.tsautocraft.cancelled" : "status.tsautocraft.done");
+				Component c = h.ticks() >= 0 ? Component.translatable("label.tsautocraft.history.line_time", h.amount(), h.target().getHoverName(), result, JobText.duration(h.ticks() / 20)) : Component.translatable("label.tsautocraft.history.line", h.amount(), h.target().getHoverName(), result);
+				return font.plainSubstrByWidth(c.getString(), 170 - 8);
+			});
+			g.text(font, text, 8, y, h.cancelled() ? 0xFF8B0000 : h.automatic() ? 0xFF1F3F8F : 0xFF1E6E1E, false);
 		}
 	}
 

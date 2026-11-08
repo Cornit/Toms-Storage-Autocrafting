@@ -26,7 +26,7 @@ import eu.sytxlabs.tsautocraft.pattern.PatternItem;
 import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
 
 /**
- * Up to 4 rows of 9 pattern slots (rows 2-4 unlocked by Capacity Upgrades), 4 upgrade slots on the right, toggles for blocking mode (button id 0) and substitutes (button id 1).
+ * Up to 4 rows of 9 pattern slots (rows 2-4 unlocked by Capacity Upgrades), 4 upgrade slots on the right, toggle for blocking mode (button id 0). Substitutes come only from the pattern (Pattern Terminal).
  * Slot order: 0-35 patterns, 36-71 player inventory, 72-75 upgrades.
  */
 public class PatternProviderMenu extends AbstractContainerMenu implements IDataReceiver {
@@ -38,7 +38,6 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 	private final Container patterns;
 	private final Container upgrades;
 	public boolean blocking = true;
-	public boolean substitutes;
 	public PatternProviderBlockEntity.LockMode lockMode = PatternProviderBlockEntity.LockMode.OFF;
 	public int priority;
 
@@ -92,17 +91,6 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		addDataSlot(new DataSlot() {
 			@Override
 			public int get() {
-				return be != null && be.isSubstitutes() ? 1 : 0;
-			}
-
-			@Override
-			public void set(int value) {
-				substitutes = value != 0;
-			}
-		});
-		addDataSlot(new DataSlot() {
-			@Override
-			public int get() {
 				return be != null ? be.getLockMode().ordinal() : 0;
 			}
 
@@ -137,15 +125,14 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		return true;
 	}
 
-	public static final int BTN_BLOCKING = 0, BTN_SUBSTITUTES = 1, BTN_LOCK_NEXT = 2, BTN_LOCK_PREV = 3, BTN_PRIO_DOWN = 4, BTN_PRIO_UP = 5, BTN_PRIO_DOWN_10 = 6, BTN_PRIO_UP_10 = 7;
+	public static final int BTN_BLOCKING = 0, BTN_LOCK_NEXT = 2, BTN_LOCK_PREV = 3, BTN_PRIO_DOWN = 4, BTN_PRIO_UP = 5, BTN_PRIO_DOWN_10 = 6, BTN_PRIO_UP_10 = 7;
 
-	/** 0 = blocking mode, 1 = substitutes for JEI-encoded patterns, 2/3 = lock mode next/previous, 4-7 = priority -1/+1/-10/+10. */
+	/** 0 = blocking mode, (1 = former substitutes toggle, unused), 2/3 = lock mode next/previous, 4-7 = priority -1/+1/-10/+10. */
 	@Override
 	public boolean clickMenuButton(Player player, int id) {
 		if (be == null) return false;
 		switch (id) {
 			case BTN_BLOCKING -> be.setBlocking(!be.isBlocking());
-			case BTN_SUBSTITUTES -> be.setSubstitutes(!be.isSubstitutes());
 			case BTN_LOCK_NEXT, BTN_LOCK_PREV -> be.cycleLockMode(id == BTN_LOCK_PREV);
 			case BTN_PRIO_DOWN -> be.setPriority(be.getPriority() - 1);
 			case BTN_PRIO_UP -> be.setPriority(be.getPriority() + 1);
@@ -173,7 +160,7 @@ public class PatternProviderMenu extends AbstractContainerMenu implements IDataR
 		int blank = player.hasInfiniteMaterials() ? -2 : blankPatternSlot(player.getInventory());
 		if (blank == -1) return "msg.tsautocraft.encode.no_blank";
 		PatternMode mode = transferMode(in);
-		var r = PatternEncoder.encode(player.level(), mode, mode.transferInputs(player.level(), in.listOrEmpty("jei_in", ItemStack.OPTIONAL_CODEC).stream().toList()), in.listOrEmpty("jei_out", ItemStack.OPTIONAL_CODEC).stream().toList(), be.isSubstitutes());
+		var r = PatternEncoder.encode(player.level(), mode, mode.transferInputs(player.level(), in.listOrEmpty("jei_in", ItemStack.OPTIONAL_CODEC).stream().toList()), in.listOrEmpty("jei_out", ItemStack.OPTIONAL_CODEC).stream().toList(), false); // exact: substitutes are set in the Pattern Terminal
 		if (r.error() != null) return r.error();
 		if (blank >= 0) player.getInventory().removeItem(blank, 1);
 		patterns.setItem(slot, r.toItem());

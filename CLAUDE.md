@@ -22,6 +22,8 @@ The user (Shaun) talks German; reply in German.
 - 0.3.0 (2026-11-08, nothing tested in game): bug fixes from a review, Pattern Access Terminal, Level Maintainer, brewing
   mode, provider lock mode/priority, return inputs on cancel, job history/ETA/recipe tree, JEI "craft missing", pattern
   multiplier, guide book (see CHANGELOG.md).
+- 0.4.0 (2026-11-08, nothing tested in game): patterns on any inventory, provider named after its machine, big performance
+  pass (see Performance below), API VERSION 2 (`PatternData.derived`).
 - Next: test in game (job list buttons/tooltips, Jade, upgrades stacking, IO modes + ghost/real filters, Redstone Upgrade on
   IO and in front of a crafter, omni provider with several crafters, fluid pattern + Importer filling, brewing stand profile,
   wireless terminals, config screen with `-PwithModMenu`, framed directional emitter).
@@ -71,13 +73,18 @@ The user (Shaun) talks German; reply in German.
   plus timings/limits (`crafter*Ticks`, `maxJobsPerTerminal`, `maxRequestAmount`, `job*Seconds`, `requester*`, `io*`,
   `craftablesSyncTicks`) - no more hard-coded constants for these, read them via `TsAutocraftConfig.get()`.
 - Blocking off: crafting patterns stack more sets of the same recipe/layout into a crafter (`fitOnTop`).
-- Substitutes (toggle in Pattern Terminal + Pattern Provider for JEI "+"): `PatternData.Entry.alternatives`, computed at encode
+- Substitutes (toggle only in the Pattern Terminal; the Pattern Provider's JEI "+" encodes exact patterns): `PatternData.Entry.alternatives`, computed at encode
   time by testing every registry item at that grid position against the recipe (same result -> substitute, max 32).
-  Planner uses the best-stocked option per position (`CraftingJob.resolvedInputs`), the provider picks per craft (`chooseInputs`).
+  Planner uses the best-stocked option per position (`CraftingJob.resolvedInputs`; none in stock -> first craftable option;
+  failed plan with substitutes -> second `PlanIndex(..., preferCraftable)` try), the provider picks per craft (`chooseInputs`).
   Crafting patterns only; processing patterns stay exact.
 - Pattern Provider full block (`PatternProviderBlock extends NodeBlock`, no front): supplies every adjacent crafter/machine
   round robin (`targetSides`, never cables/`IInventoryCable`/connectors); connector variants keep their `FACING`. Cooldown and
   redstone signal are per side (`lastCrafter`, `signalTicks`): a pulse only reaches the machine that was just filled.
+- Any pattern also works on a foreign inventory (hopper, chest, ...): crafting/smelting/brewing/fluid modes fall back to
+  `BuiltinPatternModes.dispatchInsert` (all-or-nothing sets, optional inputs like brewing fuel left out) when the target is not
+  their machine / has no tank.
+- Provider name in lists/job status: `PatternProviderBlockEntity.listName()` = anvil name, else the supplied machine(s), else own block name (cached 20 ticks).
 - Pattern Provider: crafting patterns fill `minecraft:crafter` slots 0-8 in pattern order (shifted if needed), trigger per config;
   processing patterns insert all-or-nothing, optional blocking mode. Results return via Importer.
 - Provider lock modes (`PatternProviderBlockEntity.LockMode`, GUI 2nd button row, Jade, saved): OFF | UNTIL_RESULT (per side
@@ -176,5 +183,20 @@ The user (Shaun) talks German; reply in German.
   `PatternProviderBlockEntity.pendingTriggers` (saved) and retriggered one per tick. `DispatchContext.undoPull` = delivery failed after
   pull (not consumed). Results are credited FIFO over all jobs (`CraftingJob.waitingSince`); `tracked` is saved. Requester/Maintainer
   never replan a job with crafts in flight. `tsac_plan`/`tsac_req` are rate limited per player (`CraftRequestProtocol.takePlan`).
+- Performance: Tom's `countItems` walks every slot, so `StorageUtil.count` uses one count map per network storage (rebuilt when
+  Tom's `getChangeTracker` changes). Always pull/push network items through `StorageUtil.pull/push/pullAll` (they adjust the map),
+  never `pullMatchingStack`/`pushStack` directly. Provider target sides are cached 20 ticks (`targetMask`, dropped in `NodeBlock.neighborChanged`);
+  the POWERED look uses `UPDATE_CLIENTS` only (signal changes call `updateNeighborsAt` themselves).
+  `network/NetworkCache`: one snapshot per network (keyed by the identity of Tom's node set, max 20 ticks; `NetworkCache.invalidate()`
+  on placement, provider priority change, job start) with nodes, connector, providers sorted by priority, owners, jobs (per tick);
+  `NetworkLink` and `TerminalCrafting` delegate to it. `Reservations.live(jobs)` sums the jobs' reservations on lookup.
+  `PatternData` carries a `Derived` component (cached hash, totals, `primaryKey`; excluded from equals). Planning uses
+  `CraftingJob.PlanIndex` (byOutput, stock memo, substitutes resolved lazily), shared by the `maxPossible` binary search.
+  Epochs in `NetworkCache`: `invalidate()` (snapshot), `jobsChanged()` (job list, from `JobScheduler.started`), `patternsChanged()`
+  (cached `Snapshot.craftables()`, called wherever a provider's `patternCache`/emitter `pattern` resets). `Reservations.live` caches
+  its totals by `CraftingJob.reservationVersion()` (bump it on every change of `reserved`/`paused`). Jobs skip all providers when
+  `Step.canCraftOnce` fails (patterns without substitutes). Failed plans back off (`failPlan`, up to 8x) in Exporter, Requester,
+  Maintainer. Menus send only on change via `util/SyncHash` (record/list/ItemStack content hash). `MachineProfiles.find` is memoized
+  per BlockState. Substitute encoding only tests items an ingredient accepts. Client screens cache filtered lists/tooltips/row texts.
 - Menus/screens sync through Tom's existing `toms_storage:data` packet (`NetworkHandler.sendTo/sendDataToServer`, menus implement `IDataReceiver`).
 - Assets were generated by a Python script (pixel textures, GUI backgrounds, connector models derived from Tom's `cable_connector/*` models).

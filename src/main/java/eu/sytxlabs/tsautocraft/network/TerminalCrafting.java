@@ -8,8 +8,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
-import com.tom.storagemod.inventory.InventoryCableNetwork;
-
 import eu.sytxlabs.tsautocraft.api.CraftingProvider;
 import eu.sytxlabs.tsautocraft.api.JobOwner;
 import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity.RequestResult;
@@ -27,25 +25,17 @@ public final class TerminalCrafting {
 
 	/** Items the Pattern Providers (and Crafting Emitters) on the terminal's network can craft. */
 	public static List<ItemStack> craftables(Level level, BlockPos terminal) {
-		List<CraftingProvider> providers = new ArrayList<>();
-		for (BlockEntity be : nodes(level, terminal)) {
-			if (be instanceof CraftingProvider p) providers.add(p);
-		}
-		return CraftingJob.craftables(providers);
+		return NetworkCache.of(level, terminal).craftables();
 	}
 
 	/** Block entities on the network of {@code pos} that run jobs. */
 	public static List<JobOwner> jobOwners(Level level, BlockPos pos) {
-		List<JobOwner> out = new ArrayList<>();
-		for (BlockEntity be : nodes(level, pos)) if (be instanceof JobOwner o) out.add(o);
-		return out;
+		return NetworkCache.of(level, pos).owners();
 	}
 
-	/** What all running jobs of the network of {@code pos} have reserved. */
+	/** What all running jobs of the network of {@code pos} have reserved (live view). */
 	public static Reservations reservations(Level level, BlockPos pos) {
-		List<CraftingJob> jobs = new ArrayList<>();
-		for (JobOwner o : jobOwners(level, pos)) jobs.addAll(o.activeJobs());
-		return Reservations.of(jobs);
+		return NetworkCache.of(level, pos).reservations(level);
 	}
 
 	/** Starts a job in the first Autocrafting Terminal on the network that accepts it. */
@@ -68,10 +58,10 @@ public final class TerminalCrafting {
 		ItemKey key = new ItemKey(stack);
 		record Waiting(BlockEntity owner, CraftingJob job, long since) {}
 		List<Waiting> waiting = new ArrayList<>();
-		List<BlockEntity> nodes = nodes(level, pos);
-		providerResults(nodes, key, count);
-		for (BlockEntity be : nodes) {
-			if (!(be instanceof JobOwner owner)) continue;
+		NetworkCache.Snapshot snap = NetworkCache.of(level, pos);
+		providerResults(snap.providers(), key, count);
+		for (JobOwner owner : snap.owners()) {
+			if (!(owner instanceof BlockEntity be)) continue;
 			for (CraftingJob j : owner.activeJobs()) {
 				long since = j.waitingSince(key);
 				if (since != Long.MAX_VALUE) waiting.add(new Waiting(be, j, since));
@@ -93,11 +83,10 @@ public final class TerminalCrafting {
 	 * Lock mode "until result returned": the arrived results unlock the providers waiting for them, the one that has
 	 * waited longest first. Independent of the jobs (results of a cancelled job still unlock the machine).
 	 */
-	private static void providerResults(List<BlockEntity> nodes, ItemKey key, long count) {
+	private static void providerResults(List<CraftingProvider> providers, ItemKey key, long count) {
 		record Awaiting(CraftingProvider provider, long since) {}
 		List<Awaiting> awaiting = new ArrayList<>();
-		for (BlockEntity be : nodes) {
-			if (!(be instanceof CraftingProvider p)) continue;
+		for (CraftingProvider p : providers) {
 			long since = p.awaitingSince(key);
 			if (since != Long.MAX_VALUE) awaiting.add(new Awaiting(p, since));
 		}
@@ -111,18 +100,11 @@ public final class TerminalCrafting {
 
 	/** A job with id {@code jobUid} on the network of {@code pos} was cancelled: providers give back its undelivered inputs. */
 	public static void returnInputs(Level level, BlockPos pos, int jobUid) {
-		List<BlockEntity> nodes = nodes(level, pos);
-		com.tom.storagemod.inventory.IInventoryAccess net = null;
-		for (BlockEntity be : nodes) {
-			if (be instanceof com.tom.storagemod.block.entity.IInventoryConnector c && c.hasConnectedInventories()) {
-				net = c.getMergedHandler();
-				break;
-			}
-		}
-		if (net == null) return;
-		for (BlockEntity be : nodes) {
-			if (be instanceof CraftingProvider p) p.returnInputs(jobUid, net);
-		}
+		NetworkCache.Snapshot s = NetworkCache.of(level, pos);
+		var c = s.connector();
+		if (c == null) return;
+		var net = c.getMergedHandler();
+		for (CraftingProvider p : s.providers()) p.returnInputs(jobUid, net);
 	}
 
 	/** Block entities of all functional nodes on the cable network of {@code pos}. */
@@ -140,11 +122,7 @@ public final class TerminalCrafting {
 
 	private static List<BlockEntity> nodes(Level level, BlockPos terminal) {
 		List<BlockEntity> out = new ArrayList<>();
-		for (BlockPos p : InventoryCableNetwork.getNetwork(level).getNetworkNodes(terminal)) {
-			if (!level.isLoaded(p)) continue;
-			BlockEntity be = level.getBlockEntity(p);
-			if (be != null) out.add(be);
-		}
+		for (BlockEntity be : NetworkCache.of(level, terminal).nodes()) if (!be.isRemoved()) out.add(be);
 		return out;
 	}
 }

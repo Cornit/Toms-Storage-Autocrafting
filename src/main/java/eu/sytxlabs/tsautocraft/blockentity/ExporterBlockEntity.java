@@ -54,6 +54,7 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 
 	private final CraftingJob[] jobs = new CraftingJob[SLOTS];
 	private final int[] cooldown = new int[SLOTS];
+	private final int[] planFails = new int[SLOTS];
 	private int nextId = 1;
 	private final JobRunner runner = new JobRunner();
 
@@ -120,8 +121,9 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 		if (target == null) return;
 
 		if (!buffer.isEmpty()) {
+			int was = buffer.getCount();
 			buffer = StorageUtil.insert(target, buffer);
-			setChanged();
+			if (buffer.getCount() != was) setChanged();
 			if (!buffer.isEmpty()) {
 				backoff = 4;
 				return;
@@ -148,17 +150,18 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 			ItemStack proto = slot.getStack();
 			if (proto.isEmpty()) continue;
 
-			long free = StorageUtil.count(net, level, new ItemKey(proto)) - res.total(new ItemKey(proto));
+			ItemKey key = new ItemKey(proto);
+			long free = StorageUtil.count(net, level, key) - res.total(key);
 			if (free <= 0) continue; // everything reserved by crafting jobs
 			long room = StorageUtil.simulateInsert(target, proto, Math.min(free, Math.min(maxPerOp(), proto.getMaxStackSize())));
 			if (room <= 0) continue;
 
-			ItemStack pulled = net.pullMatchingStack(proto, room);
+			ItemStack pulled = StorageUtil.pull(net, proto, room);
 			if (pulled.isEmpty()) continue;
 
 			ItemStack rest = StorageUtil.insert(target, pulled);
 			if (!rest.isEmpty()) {
-				rest = net.pushStack(rest);
+				rest = StorageUtil.push(net, rest);
 				buffer = rest;
 			}
 			mode.moved(modeContext, i);
@@ -178,15 +181,34 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 		if (f.isEmpty() || f.getItem() instanceof IItemFilter) return; // only plain items can be crafted
 		long room = StorageUtil.simulateInsert(target, f, Math.min(maxPerOp(), f.getMaxStackSize()));
 		if (room <= 0) return;
-		var outcome = CraftingJob.plan(nextId, level, net, network.providers(level, worldPosition), f, room, TerminalCrafting.reservations(level, worldPosition));
+		var providers = network.providers(level, worldPosition);
+		if (!hasPatternFor(providers, new ItemKey(f))) {
+			failPlan(i); // no pattern at all: no need to plan
+			return;
+		}
+		var outcome = CraftingJob.plan(nextId, level, net, providers, f, room, TerminalCrafting.reservations(level, worldPosition));
 		if (outcome.ok()) {
 			nextId++;
 			jobs[i] = outcome.job();
+			planFails[i] = 0;
 			JobScheduler.started(this, jobs[i]);
+			setChanged();
 		} else {
-			cooldown[i] = PLAN_COOLDOWN;
+			failPlan(i);
 		}
-		setChanged();
+	}
+
+	/** Failed plans wait longer each time (up to 8x), so a missing ingredient does not replan every few ticks. */
+	private void failPlan(int i) {
+		cooldown[i] = PLAN_COOLDOWN << Math.min(planFails[i], 3);
+		if (planFails[i] < 3) planFails[i]++;
+	}
+
+	private static boolean hasPatternFor(List<eu.sytxlabs.tsautocraft.api.CraftingProvider> providers, ItemKey key) {
+		for (var p : providers) {
+			for (var d : p.getPatterns()) if (d.outputTotals().containsKey(key)) return true;
+		}
+		return false;
 	}
 
 	@Override

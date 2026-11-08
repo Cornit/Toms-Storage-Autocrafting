@@ -23,6 +23,7 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.BrewingStandBlockEntity;
+import net.minecraft.world.level.block.entity.CrafterBlockEntity;
 
 import eu.sytxlabs.tsautocraft.api.CraftingProvider.DispatchResult;
 import eu.sytxlabs.tsautocraft.api.MachineProfile;
@@ -91,6 +92,7 @@ public final class BuiltinPatternModes {
 
 		@Override
 		public Outcome dispatch(DispatchContext ctx, PatternData pattern) {
+			if (!(ctx.level().getBlockEntity(ctx.targetPos()) instanceof CrafterBlockEntity)) return dispatchInsert(ctx, pattern);
 			return ((PatternProviderBlockEntity) ctx.provider()).dispatchCrafter(ctx, pattern);
 		}
 	};
@@ -288,7 +290,7 @@ public final class BuiltinPatternModes {
 	 */
 	public static PatternMode.Outcome dispatchBrewing(PatternMode.DispatchContext ctx, PatternData p) {
 		//noinspection resource
-		if (!(ctx.level().getBlockEntity(ctx.targetPos()) instanceof BrewingStandBlockEntity stand)) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+		if (!(ctx.level().getBlockEntity(ctx.targetPos()) instanceof BrewingStandBlockEntity stand)) return dispatchInsert(ctx, p);
 		if (p.inputs().size() != 9) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
 		for (int i = 0; i < 4; i++) if (!stand.getItem(i).isEmpty()) return PatternMode.Outcome.fail(DispatchResult.BUSY);
 		List<ItemStack> want = new ArrayList<>(4);
@@ -330,8 +332,10 @@ public final class BuiltinPatternModes {
 		java.util.Map<List<Direction>, List<Storage<ItemVariant>>> bySides = new java.util.HashMap<>();
 		Set<Storage<ItemVariant>> all = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 		int index = 0;
-		for (PatternData.Entry e : p.inputs()) {
-			if (e.isEmpty()) continue;
+		PatternMode mode = p.modeType();
+		for (int i = 0; i < p.inputs().size(); i++) {
+			PatternData.Entry e = p.inputs().get(i);
+			if (e.isEmpty() || mode.optionalInput(p, i)) continue; // e.g. brewing fuel: not planned, so not delivered here
 			List<Storage<ItemVariant>> targets = bySides.computeIfAbsent(profile.sidesFor(e.item(), index++), sides -> storagesFor(ctx, sides));
 			if (targets.isEmpty()) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
 			all.addAll(targets);
@@ -406,7 +410,9 @@ public final class BuiltinPatternModes {
 		}
 		Storage<FluidVariant> tank = FluidStorage.SIDED.find(ctx.level(), ctx.targetPos(), ctx.facing().getOpposite());
 		Storage<ItemVariant> items = StorageUtil.facingStorage(ctx.level(), ctx.providerPos(), ctx.facing());
-		if (anyFluid && tank == null || anyItem && items == null) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+		// No tank (e.g. a hopper): the filled containers go in as items
+		if (anyFluid && tank == null) return dispatchInsert(ctx, p);
+		if (anyItem && items == null) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
 		if (ctx.blocking() && (anyItem && containsAnyInput(items, p) || anyFluid && FluidUtil.containsAny(tank, FluidUtil.fluidsOf(in)))) {
 			return PatternMode.Outcome.fail(DispatchResult.BUSY);
 		}
@@ -465,7 +471,7 @@ public final class BuiltinPatternModes {
 	/** Smelting: the input goes into the furnace's input slot, several at once with Stack Upgrades. */
 	public static PatternMode.Outcome dispatchFurnace(PatternMode.DispatchContext ctx, PatternData p) {
         //noinspection resource
-        if (!(ctx.level().getBlockEntity(ctx.targetPos()) instanceof AbstractFurnaceBlockEntity furnace)) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+        if (!(ctx.level().getBlockEntity(ctx.targetPos()) instanceof AbstractFurnaceBlockEntity furnace)) return dispatchInsert(ctx, p);
 		List<ItemStack> in = p.inputStacks();
 		if (in.size() != 1) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
 		ItemStack want = in.getFirst();

@@ -22,6 +22,7 @@ import eu.sytxlabs.tsautocraft.api.Upgrades;
 import eu.sytxlabs.tsautocraft.blockentity.AutocraftingTerminalBlockEntity;
 import eu.sytxlabs.tsautocraft.job.CraftingJob.JobView;
 import eu.sytxlabs.tsautocraft.job.JobHistoryEntry;
+import eu.sytxlabs.tsautocraft.util.SyncHash;
 import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
 
 /**
@@ -44,6 +45,8 @@ public class AutocraftingTerminalMenu extends AbstractContainerMenu implements I
 	private final AutocraftingTerminalBlockEntity be;
 	private final Inventory inv;
 	private int syncTimer;
+	private boolean sent;
+	private long lastHash;
 
 	// Client state
 	public final List<Craftable> craftables = new ArrayList<>();
@@ -72,6 +75,10 @@ public class AutocraftingTerminalMenu extends AbstractContainerMenu implements I
 		List<Craftable> list = be.craftables().stream().map(st -> new Craftable(st, be.stockOf(st))).toList();
 		List<JobView> views = be.jobViews();
 		List<JobHistoryEntry> hist = List.copyOf(be.history());
+		long hash = SyncHash.of(list, views, hist);
+		if (sent && hash == lastHash) return; // nothing changed: no packet
+		sent = true;
+		lastHash = hash;
 		MenuUtil.sendToClient(inv.player, out -> {
 			list.forEach(out.list("craft", Craftable.CODEC)::add);
 			views.forEach(out.list("jobs", JobView.CODEC)::add);

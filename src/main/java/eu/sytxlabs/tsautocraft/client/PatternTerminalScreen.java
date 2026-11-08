@@ -28,6 +28,12 @@ public class PatternTerminalScreen extends AbstractStorageTerminalScreen<Pattern
 	private boolean shownSubst;
 	private Component message = Component.empty();
 	private int messageTicks;
+
+	@Override
+	protected void containerTick() {
+		super.containerTick();
+		if (messageTicks > 0) messageTicks--; // game ticks, not frames
+	}
 	/** x2, /2, x10, /10 right of the encoding area (free-amount modes only). */
 	private final Button[] scaleBtns = new Button[PatternTerminalMenu.SCALES.length];
 	/** Tooltip key last set per scale button, to update tooltips only when the reason changes. */
@@ -148,7 +154,6 @@ public class PatternTerminalScreen extends AbstractStorageTerminalScreen<Pattern
 			substBtn.setMessage(substLabel());
 			substBtn.setTooltip(substTooltip());
 		}
-		if (messageTicks > 0) messageTicks--;
 		updateScaleButtons();
 		super.extractRenderState(graphics, mouseX, mouseY, a);
 		if (modeBtn != null) graphics.item(menu.modeType().icon(), modeBtn.getX() + 1, modeBtn.getY() + 1);

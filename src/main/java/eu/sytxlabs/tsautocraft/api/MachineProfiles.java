@@ -34,16 +34,23 @@ public final class MachineProfiles {
 
 	private static final List<Entry> CODE = new ArrayList<>();
 	private static volatile List<Entry> data = List.of();
+	/** Result per block state (states are canonical instances); cleared on register and reload (tags may change). */
+	private static final java.util.Map<BlockState, MachineProfile> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
 
 	private MachineProfiles() {}
 
 	/** Profile for every target block {@code blocks} accepts. */
 	public static synchronized void register(Predicate<BlockState> blocks, MachineProfile profile) {
 		CODE.add(new Entry(blocks, profile));
+		CACHE.clear();
 	}
 
 	/** Profile for the machine, {@link MachineProfile#DEFAULT} if none matches. */
 	public static MachineProfile find(BlockState state) {
+		return CACHE.computeIfAbsent(state, MachineProfiles::lookup);
+	}
+
+	private static MachineProfile lookup(BlockState state) {
 		for (Entry e : CODE) if (e.blocks().test(state)) return e.profile();
 		for (Entry e : data) if (e.blocks().test(state)) return e.profile();
 		return MachineProfile.DEFAULT;
@@ -63,6 +70,7 @@ public final class MachineProfiles {
 			}
 		});
 		data = List.copyOf(list);
+		CACHE.clear();
 		TsAutocraft.LOGGER.info("Loaded {} machine profiles", list.size());
 	}
 

@@ -59,6 +59,7 @@ public class PatternAccessTerminalScreen extends TSContainerScreen<PatternAccess
 	@Override
 	protected void init() {
 		super.init();
+		hideShown = null;
 		search = new EditBox(font, leftPos + 72, topPos + SEARCH_Y, 96, 12, Component.translatable("label.tsautocraft.search"));
 		search.setMaxLength(50);
 		search.setHint(Component.translatable("label.tsautocraft.search").withStyle(ChatFormatting.DARK_GRAY));
@@ -78,15 +79,25 @@ public class PatternAccessTerminalScreen extends TSContainerScreen<PatternAccess
 
 	//region Filter and request
 
+	private List<Entry> shownCache;
+	private String shownQuery;
+	private boolean shownHide;
+	private int shownRevision = -1;
+
+	/** Filtered entries, rebuilt only when the search, "hide full" or the directory changed (it is used every frame). */
 	private List<Entry> shown() {
 		String q = search != null ? search.getValue().trim().toLowerCase(Locale.ROOT) : "";
+		if (shownCache != null && q.equals(shownQuery) && hideFull == shownHide && menu.revision == shownRevision) return shownCache;
+		shownQuery = q;
+		shownHide = hideFull;
+		shownRevision = menu.revision;
 		List<Entry> out = new ArrayList<>();
 		for (Entry e : menu.entries) {
 			if (hideFull && e.full()) continue;
 			if (!q.isEmpty() && !matches(e, q)) continue;
 			out.add(e);
 		}
-		return out;
+		return shownCache = out;
 	}
 
 	private static boolean matches(Entry e, String q) {
@@ -186,6 +197,9 @@ public class PatternAccessTerminalScreen extends TSContainerScreen<PatternAccess
 
 	//region Rendering
 
+	/** State the hide button shows (its tooltip is only rebuilt on change). */
+	private Boolean hideShown;
+
 	private Entry entryAt(long pos) {
 		for (Entry e : menu.entries) if (e.pos() == pos) return e;
 		return null;
@@ -193,7 +207,8 @@ public class PatternAccessTerminalScreen extends TSContainerScreen<PatternAccess
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
-		if (hideBtn != null) {
+		if (hideBtn != null && (hideShown == null || hideShown != hideFull)) {
+			hideShown = hideFull;
 			hideBtn.setMessage(Component.literal(hideFull ? "◐" : "●"));
 			hideBtn.setTooltip(Tooltip.create(Component.translatable(hideFull ? "tooltip.tsautocraft.access.show_full" : "tooltip.tsautocraft.access.hide_full")));
 		}

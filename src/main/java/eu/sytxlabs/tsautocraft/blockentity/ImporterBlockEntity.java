@@ -57,10 +57,10 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 
 		if (!buffer.isEmpty()) {
 			ItemStack before = buffer.copy();
-			buffer = net.pushStack(buffer);
+			buffer = StorageUtil.push(net, buffer);
 			TerminalCrafting.itemsArrived(level, worldPosition, before, before.getCount() - buffer.getCount());
 			if (!buffer.isEmpty() && source != null) buffer = StorageUtil.insert(source, buffer);
-			setChanged();
+			if (buffer.getCount() != before.getCount()) setChanged();
 			if (!buffer.isEmpty()) {
 				backoff = 4;
 				return;
@@ -113,7 +113,7 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 		if (extracted <= 0) return;
 		mode.moved(modeContext, chosenIndex);
 
-		ItemStack rest = net.pushStack(chosen.toStack((int) extracted));
+		ItemStack rest = StorageUtil.push(net, chosen.toStack((int) extracted));
 		TerminalCrafting.itemsArrived(level, worldPosition, chosen.toStack(1), extracted - rest.getCount());
 		if (!rest.isEmpty()) {
 			rest = StorageUtil.insert(source, rest);
@@ -123,6 +123,18 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 		setChanged();
 	}
 
+	private final ItemStack[] fluidKey = new ItemStack[SLOTS];
+	private final FluidUtil.Content[] fluidContent = new FluidUtil.Content[SLOTS];
+
+	/** Fluid content of filter {@code i}, cached until the filter changes (an item API lookup per filter and operation otherwise). */
+	private FluidUtil.Content fluidContent(int i, ItemStack f) {
+		if (fluidKey[i] == null || !ItemStack.isSameItemSameComponents(fluidKey[i], f)) {
+			fluidKey[i] = f.copyWithCount(1);
+			fluidContent[i] = FluidUtil.content(fluidKey[i].copy());
+		}
+		return fluidContent[i];
+	}
+
 	/** Fluids: a filter that is a filled container (e.g. lava bucket) takes a matching empty container from the network, fills it from the machine's fluid storage and stores the filled one. Not with blacklist modes. */
 	private boolean importFluid(IInventoryAccess net) {
 		if (getMode().blacklist()) return false;
@@ -130,22 +142,22 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 		for (int i = 0; i < SLOTS; i++) {
 			ItemStack f = filters.getItem(i);
 			if (f.isEmpty() || f.getItem() instanceof IItemFilter) continue;
-			FluidUtil.Content c = FluidUtil.content(f.copyWithCount(1));
+			FluidUtil.Content c = fluidContent(i, f);
 			if (c == null || c.empty().isEmpty() || level == null) continue;
 			if (tank == null) tank = FluidStorage.SIDED.find(level, worldPosition.relative(facing()), facing().getOpposite());
 			if (tank == null) return false;
 			try (Transaction t = Transaction.openOuter()) {
 				if (tank.extract(c.fluid(), c.amount(), t) < c.amount()) continue; // not enough yet
 			}
-			ItemStack empty = net.pullMatchingStack(c.empty(), 1);
+			ItemStack empty = StorageUtil.pull(net, c.empty(), 1);
 			if (empty.isEmpty()) continue;
 			ItemStack filled = FluidUtil.fill(empty, c.fluid(), f.copyWithCount(1), tank);
 			if (filled == null) {
-				buffer = net.pushStack(empty);
+				buffer = StorageUtil.push(net, empty);
 				if (!buffer.isEmpty()) return true; // the buffer holds one stack only: stop here
 				continue;
 			}
-			ItemStack rest = net.pushStack(filled.copy());
+			ItemStack rest = StorageUtil.push(net, filled.copy());
 			TerminalCrafting.itemsArrived(level, worldPosition, filled, filled.getCount() - rest.getCount());
 			if (!rest.isEmpty()) buffer = rest;
 			setChanged();
