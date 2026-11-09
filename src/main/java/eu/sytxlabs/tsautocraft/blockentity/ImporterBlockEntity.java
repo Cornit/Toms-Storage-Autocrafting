@@ -33,7 +33,7 @@ import eu.sytxlabs.tsautocraft.util.StorageUtil;
  * Importer: pulls items from the inventory in front of it into the network. Without filters everything is imported,
  * with filters only matching items. Typical use: emptying the output chest behind a crafter/machine.
  */
-public class ImporterBlockEntity extends AbstractIOBlockEntity {
+public class ImporterBlockEntity extends AbstractIOBlockEntity implements StatusInfo {
 
 	public ImporterBlockEntity(BlockPos pos, BlockState state) {
 		super(ModContent.IMPORTER_BE, pos, state);
@@ -52,13 +52,15 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 	@Override
 	protected boolean work() {
 		IInventoryAccess net = network.access(level, worldPosition);
-		if (net == PlatformInventoryAccess.EMPTY) return false;
+		if (net == PlatformInventoryAccess.EMPTY || level == null) return false;
 		Storage<ItemVariant> source = StorageUtil.facingStorage(level, worldPosition, facing());
 
 		if (!buffer.isEmpty()) {
 			ItemStack before = buffer.copy();
 			buffer = StorageUtil.push(net, buffer);
 			TerminalCrafting.itemsArrived(level, worldPosition, before, before.getCount() - buffer.getCount());
+			throughput.add(level.getGameTime(), before.getCount() - buffer.getCount());
+			if (!buffer.isEmpty()) TerminalCrafting.storageFull(level, worldPosition, buffer);
 			if (!buffer.isEmpty() && source != null) buffer = StorageUtil.insert(source, buffer);
 			if (buffer.getCount() != before.getCount()) setChanged();
 			if (!buffer.isEmpty()) {
@@ -67,7 +69,7 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 			}
 		}
 		if (importFluid(net)) return true;
-		if (source == null || level == null) return false;
+		if (source == null) return false;
 		if (level.getBlockEntity(worldPosition.relative(facing())) instanceof BrewingStandBlockEntity stand && !stand.getItem(3).isEmpty()) return false;
 
 		IOMode mode = getMode();
@@ -114,7 +116,9 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 
 		ItemStack rest = StorageUtil.push(net, chosen.toStack((int) extracted));
 		TerminalCrafting.itemsArrived(level, worldPosition, chosen.toStack(1), extracted - rest.getCount());
+		throughput.add(level.getGameTime(), extracted - rest.getCount());
 		if (!rest.isEmpty()) {
+			TerminalCrafting.storageFull(level, worldPosition, rest);
 			rest = StorageUtil.insert(source, rest);
 			buffer = rest;
 			backoff = 8;
@@ -159,11 +163,22 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity {
 			}
 			ItemStack rest = StorageUtil.push(net, filled.copy());
 			TerminalCrafting.itemsArrived(level, worldPosition, filled, filled.getCount() - rest.getCount());
-			if (!rest.isEmpty()) buffer = rest;
+			throughput.add(level.getGameTime(), filled.getCount() - rest.getCount());
+			if (!rest.isEmpty()) {
+				buffer = rest;
+				TerminalCrafting.storageFull(level, worldPosition, rest);
+			}
 			setChanged();
 			return true;
 		}
 		return false;
+	}
+
+	@Override
+	public void appendStatus(java.util.function.Consumer<Component> lines) {
+		if (level == null) return;
+		Component t = throughput.line("jade.tsautocraft.items_per_minute", level.getGameTime());
+		if (t != null) lines.accept(t);
 	}
 
 	@Override

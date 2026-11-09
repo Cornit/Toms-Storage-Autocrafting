@@ -11,6 +11,23 @@
   overwrites it); the clear and load buttons show icons (barrier, pattern) instead of "X" and "L".
 - Guide book pages are plain text files per language (`assets/tsautocraft/guide/<lang>/<page>.txt`, first line = title),
   so resource packs can translate the guide; missing languages fall back to English.
+- Memory Card (redstone, gold ingots and a Blank Pattern): shift + right click copies the settings of a Pattern
+  Provider, Exporter, Importer, Requester, Level Maintainer or Crafting Emitter, right click applies them to a block of
+  the same type, shift + right click into the air clears the card. Ghost filters are copied; real filter items and
+  missing upgrades are taken from your inventory (unconfigured filters are set up like the original), nothing is
+  created and anything missing is listed. Anvil names are not copied.
+- Recipe tree as a graph: the Tree button in the request preview opens a full screen tree with item icons and amounts
+  (drag to move, mouse wheel to zoom, click a node to collapse it; red frame = missing, blue = crafted, grey = from
+  storage). It starts collapsed below the second level except for the paths to missing items, and can start the job.
+- Autocrafting Terminal history: ↻ next to your own finished jobs opens the request dialog with the same item and amount.
+- Jobs show "storage full" as the reason when an Importer (or a Pattern Provider returning results) cannot put the
+  results into the network.
+- Jade shows crafts per minute for Pattern Providers and items per minute for Importers and Exporters.
+- The guide book opens like a real book: two pages side by side, leather cover, page arrows in the corners; wide
+  diagrams are scaled to the page. Diagrams are files now (`assets/tsautocraft/guide/diagrams/<page>.txt`, resource packs
+  can change them) with cable junctions (`+`); the setup diagram shows a clearer network.
+- Admin command `/tsautocraft` (permission level 2): `reload` reads `config/tsautocraft.json` again, `jobs` lists all
+  running jobs with their position (click to teleport / to cancel), `cancel <id>` cancels one.
 
 ## For mod developers
 
@@ -24,6 +41,13 @@
   not enough fluid yet. Before, the cauldron was reported as "no machine".
 - A full-block Pattern Provider no longer treats plain blocks next to it (planks, stone, ...) as machines: they are no
   longer part of its name ("Spruce Planks, Crafter") and get no deliveries.
+- Cancelling a job after a server restart returns its inputs again: the Pattern Provider now saves which job filled a
+  machine (jobs have a persistent id), before this was lost on restart.
+
+## Development
+
+- Fabric game tests (`gradlew :26.3-fabric:runGametest`, also in CI): crafting through a crafter, smelting, cancel
+  with returned inputs (also after a reload), reservations of two jobs.
 
 # 0.4.1
 

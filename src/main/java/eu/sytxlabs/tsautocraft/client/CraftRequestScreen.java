@@ -10,7 +10,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
@@ -31,7 +30,7 @@ import eu.sytxlabs.tsautocraft.util.MathExpr;
  * <ol>
  *   <li>Amount -> "Calculate" sends {@code tsac_plan}.</li>
  *   <li>Material list (from storage / to craft / missing, all crafting steps) -> "Start" sends {@code tsac_req}.
- *   The tree button switches to the recipe tree (which step crafts what from what; click a line to collapse/expand it).</li>
+ *   The tree button opens the recipe tree as a graph ({@link RecipeTreeScreen}), which can start the job too.</li>
  * </ol>
  * Tom's sync packets keep going to the screen underneath, so its item list stays valid.
  */
@@ -41,7 +40,6 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 	private static final int AMOUNT_Y = 38, MESSAGE_Y = AMOUNT_Y + 58;
 	private static final int LIST_Y = 40, ROW_H = 18, ROWS = 6;
 	private static final int MAX_MISSING_LINES = 3;
-	private static final int TREE_ROW_H = 12, TREE_ROWS = ROWS * ROW_H / TREE_ROW_H, INDENT = 8;
 
 	private final Screen parent;
 	private final ItemStack item;
@@ -53,9 +51,6 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 	private final List<Missing> missing = new ArrayList<>();
 	private final List<PlanEntry> materials = new ArrayList<>();
 	private final List<TreeLine> tree = new ArrayList<>();
-	/** Indices (into {@link #tree}) of collapsed lines. */
-	private final java.util.Set<Integer> collapsed = new java.util.HashSet<>();
-	private boolean showTree;
 	private boolean preview, planOk;
 	private long previewAmount;
 	private int scroll;
@@ -103,7 +98,7 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		startBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.start"), _ -> start()).bounds(left + 8, by, 104, 18).build());
 		maxBtn = addRenderableWidget(Button.builder(maxLabel(), _ -> craftPossible()).bounds(left + 8, by, 104, 18).build());
 		backBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.back"), _ -> back()).bounds(left + W - 112, by, 104, 18).build());
-		viewBtn = addRenderableWidget(Button.builder(viewLabel(), _ -> toggleView()).bounds(left + W - 60, top + 18, 52, 16).build());
+		viewBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.view_tree"), _ -> openTree()).bounds(left + W - 60, top + 18, 52, 16).build());
 		updateWidgets();
 		amountChanged();
 		if (!preview) setInitialFocus(amountBox);
@@ -147,18 +142,11 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		maxBtn.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("tooltip.tsautocraft.craft_possible")));
 		backBtn.setMessage(Component.translatable(preview ? "button.tsautocraft.back" : "gui.cancel"));
 		viewBtn.visible = preview && !tree.isEmpty();
-		viewBtn.setMessage(viewLabel());
-		viewBtn.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable(showTree ? "tooltip.tsautocraft.view_list" : "tooltip.tsautocraft.view_tree")));
+		viewBtn.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("tooltip.tsautocraft.view_tree")));
 	}
 
-	private Component viewLabel() {
-		return Component.translatable(showTree ? "button.tsautocraft.view_list" : "button.tsautocraft.view_tree");
-	}
-
-	private void toggleView() {
-		showTree = !showTree;
-		scroll = 0;
-		updateWidgets();
+	private void openTree() {
+		if (!tree.isEmpty()) minecraft.gui.setScreen(new RecipeTreeScreen(this, tree, item, previewAmount, planOk));
 	}
 
 	private void addAmount(int n) {
@@ -206,7 +194,8 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		});
 	}
 
-	private void start() {
+	/** Starts the previewed job (also from {@link RecipeTreeScreen}). */
+	void start() {
 		if (!planOk) return;
 		if (minecraft.player == null) return;
 		MenuUtil.sendToServer(minecraft.player, out -> {
@@ -232,8 +221,6 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 			in.listOrEmpty("tsac_mat", PlanEntry.CODEC).stream().forEach(materials::add);
 			tree.clear();
 			in.listOrEmpty("tsac_tree", TreeLine.CODEC).stream().forEach(tree::add);
-			collapsed.clear();
-			if (tree.isEmpty()) showTree = false;
 			planOk = in.getBooleanOr("tsac_ok", false);
 			maxPossible = in.getLongOr("tsac_max", -1);
 			scroll = 0;
@@ -281,47 +268,7 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 	}
 
 	private int maxScroll() {
-		return showTree ? Math.max(0, visibleTree().size() - TREE_ROWS) : Math.max(0, materials.size() - ROWS);
-	}
-
-	@Override
-	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-		if (preview && showTree) {
-			int line = treeLineAt(event.x(), event.y());
-			if (line >= 0 && hasChildren(line)) {
-				if (!collapsed.remove(line)) collapsed.add(line);
-				scroll = Mth.clamp(scroll, 0, maxScroll());
-				return true;
-			}
-		}
-		return super.mouseClicked(event, doubleClick);
-	}
-
-	/** Index into {@link #tree} of the line under the mouse, -1 if none. */
-	private int treeLineAt(double mx, double my) {
-		int x0 = left + 7, y0 = top + LIST_Y;
-		if (mx < x0 || mx >= left + W - 7 || my < y0) return -1;
-		int row = (int) ((my - y0) / TREE_ROW_H);
-		List<Integer> visible = visibleTree();
-		return row < TREE_ROWS && row + scroll < visible.size() ? visible.get(row + scroll) : -1;
-	}
-
-	private boolean hasChildren(int i) {
-		return i + 1 < tree.size() && !tree.get(i + 1).item().isEmpty() && tree.get(i + 1).depth() > tree.get(i).depth();
-	}
-
-	/** Indices of the tree lines not hidden by a collapsed parent. */
-	private List<Integer> visibleTree() {
-		List<Integer> out = new ArrayList<>();
-		int hideBelow = Integer.MAX_VALUE;
-		for (int i = 0; i < tree.size(); i++) {
-			TreeLine l = tree.get(i);
-			if (!l.item().isEmpty() && l.depth() > hideBelow) continue;
-			hideBelow = Integer.MAX_VALUE;
-			out.add(i);
-			if (collapsed.contains(i)) hideBelow = l.depth();
-		}
-		return out;
+		return Math.max(0, materials.size() - ROWS);
 	}
 
 	@Override
@@ -359,8 +306,7 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 			g.text(font, name, x + 20, top + 22, 0xFF404040, false);
 		}
 
-		if (preview && showTree) extractTree(g, mouseX, mouseY);
-		else if (preview) extractMaterials(g, mouseX, mouseY);
+		if (preview) extractMaterials(g, mouseX, mouseY);
 		else extractMessage(g, top + MESSAGE_Y, 0); // compact: one line, no missing list
 	}
 
@@ -385,48 +331,6 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		}
 		extractMessage(g, y1 + 2, MAX_MISSING_LINES);
 		if (!hovered.isEmpty()) g.setTooltipForNextFrame(font, hovered, mouseX, mouseY);
-	}
-
-	/** Recipe tree: indented lines "8x Planks", right side crafts / stored / missing; the target is the first line. */
-	private void extractTree(GuiGraphicsExtractor g, int mouseX, int mouseY) {
-		int x0 = left + 7, y0 = top + LIST_Y, x1 = left + W - 7, y1 = y0 + ROWS * ROW_H;
-		g.fill(x0, y0, x1, y1, 0xFF8B8B8B);
-		List<Integer> visible = visibleTree();
-		TreeLine hovered = null;
-		for (int r = 0; r < TREE_ROWS && r + scroll < visible.size(); r++) {
-			int idx = visible.get(r + scroll);
-			TreeLine l = tree.get(idx);
-			int y = y0 + r * TREE_ROW_H;
-			if (l.item().isEmpty()) {
-				g.text(font, Component.translatable("label.tsautocraft.tree.more", l.amount()), x0 + 3, y + 2, 0xFFE0E0E0, true);
-				continue;
-			}
-			if (l.missing() > 0) g.fill(x0, y, x1, y + TREE_ROW_H, 0xFFB06060);
-			int x = x1 - 2;
-			x = amountText(g, x, y + 2, l.missing(), "label.tsautocraft.plan.missing", 0xFFFFFFFF);
-			x = amountText(g, x, y + 2, l.crafts(), "label.tsautocraft.tree.crafts", 0xFFC0E0FF);
-			x = amountText(g, x, y + 2, l.stored(), "label.tsautocraft.plan.stored", 0xFFE0E0E0);
-			int tx = x0 + 3 + Math.min(l.depth(), 12) * INDENT;
-			String marker = hasChildren(idx) ? (collapsed.contains(idx) ? "\u25B8 " : "\u25BE ") : "  ";
-			String text = marker + Component.translatable("label.tsautocraft.item_count", AutocraftingTerminalScreen.shortNumber(l.amount()), l.item().getHoverName()).getString();
-			g.text(font, font.plainSubstrByWidth(text, Math.max(0, x - tx - 4)), tx, y + 2, 0xFFFFFFFF, true);
-			if (mouseX >= x0 && mouseX < x1 && mouseY >= y && mouseY < y + TREE_ROW_H) hovered = l;
-		}
-		if (visible.size() > TREE_ROWS) {
-			g.text(font, (scroll + 1) + "-" + Math.min(scroll + TREE_ROWS, visible.size()) + "/" + visible.size(), left + W - 50, top + 6, 0xFF404040, false);
-		}
-		extractMessage(g, y1 + 2, MAX_MISSING_LINES);
-		if (hovered != null) g.setComponentTooltipForNextFrame(font, treeTooltip(hovered), mouseX, mouseY);
-	}
-
-	/** Item name, then how the need is covered (stored / crafts x pattern -> made / missing). */
-	private static List<Component> treeTooltip(TreeLine l) {
-		List<Component> lines = new ArrayList<>();
-		lines.add(Component.translatable("label.tsautocraft.item_count", l.amount(), l.item().getHoverName()));
-		if (l.stored() > 0) lines.add(Component.translatable("tooltip.tsautocraft.tree.stored", l.stored()).withStyle(net.minecraft.ChatFormatting.GRAY));
-		if (l.crafts() > 0) lines.add(Component.translatable("tooltip.tsautocraft.tree.crafted", l.crafts(), l.made()).withStyle(net.minecraft.ChatFormatting.AQUA));
-		if (l.missing() > 0) lines.add(Component.translatable("tooltip.tsautocraft.tree.missing", l.missing()).withStyle(net.minecraft.ChatFormatting.RED));
-		return lines;
 	}
 
 	/** Right-aligned "n label" part of a material row; returns the new right edge. */

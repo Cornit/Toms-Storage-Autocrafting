@@ -5,6 +5,6 @@ Ejecuta los trabajos de fabricación de la red; hace falta al menos uno. Muestra
 - Elige un objeto, introduce una cantidad y pídelo.
 - Cada trabajo muestra su progreso; pasa el ratón por encima para ver los pasos y por qué uno espera (objetos que faltan, provider ocupado).
 - Botones por trabajo: prioridad (alta/normal/baja), pausa, cancelar. Al cancelar un trabajo, los ingredientes que siguen dentro de las máquinas pueden devolverse (config returnInputsOnCancel).
-- Pestañas En curso/Historial: el historial muestra los últimos trabajos terminados o cancelados (✕ lo borra); los trabajos en curso muestran el tiempo restante estimado en su descripción.
+- Pestañas En curso/Historial: el historial muestra los últimos trabajos terminados o cancelados (✕ lo borra, ↻ vuelve a pedir uno de tus trabajos); los trabajos en curso muestran el tiempo restante estimado en su descripción.
 - Los trabajos reservan sus materiales, así que dos trabajos nunca usan los mismos objetos.
 - Las mejoras de capacidad permiten más trabajos en paralelo.

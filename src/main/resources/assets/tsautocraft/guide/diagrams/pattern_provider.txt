@@ -1,0 +1,5 @@
+# Full block: supplies every machine around it. Connector variant: only the one in front.
+. mc:crafter . . . .
+mc:furnace ac:pattern_provider mc:crafter . ac:pattern_provider_connector > mc:blast_furnace
+. | . . | .
+. + - - + .

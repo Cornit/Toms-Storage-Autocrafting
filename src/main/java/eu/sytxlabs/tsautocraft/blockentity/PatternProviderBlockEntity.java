@@ -75,7 +75,7 @@ import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
  * Results do NOT return automatically: they must reach the network through an Importer (or a chest that is part
  * of the storage).
  */
-public class PatternProviderBlockEntity extends PaintedBlockEntity implements TickableServer, MenuProvider, CraftingProvider, Upgrades.UpgradeHost, StatusInfo {
+public class PatternProviderBlockEntity extends PaintedBlockEntity implements TickableServer, MenuProvider, CraftingProvider, Upgrades.UpgradeHost, StatusInfo, MemoryCardHost {
 	private final CustomName customName = new CustomName();
 	public static final int ROW = 9, MAX_CAPACITY = 3, SLOTS = ROW * (1 + MAX_CAPACITY), UPGRADE_SLOTS = 4;
 	public static final int MAX_SETS = 64;
@@ -124,6 +124,8 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 	/** Results made by a delivery itself (filled containers), pushed and credited on the next tick: the job counts the craft as in flight only after the dispatch. */
 	private final List<ItemStack> results = new ArrayList<>();
 	private final NetworkLink network = new NetworkLink();
+	/** Crafts delivered per minute (Jade). */
+	private final eu.sytxlabs.tsautocraft.util.Throughput throughput = new eu.sytxlabs.tsautocraft.util.Throughput();
 
 	/**
 	 * Lock modes (like AE2): OFF = deliver whenever the machine accepts (blocking toggle applies), UNTIL_RESULT = after a
@@ -149,10 +151,12 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 	private final long[] awaitCount = new long[6];
 	private final long[] awaitSince = new long[6];
 	/**
-	 * Cancel cleanup (runtime only): per side the job ({@code CraftingJob.uid}) that made every delivery since the side
-	 * last held none of the pattern's inputs (-1 = several jobs, 0 = none/unknown), its pattern and crafts delivered.
+	 * Cancel cleanup (saved): per side the job ({@code CraftingJob.persistentId}) that made every delivery since the side
+	 * last held none of the pattern's inputs ({@link #MIXED_JOBS} = several jobs or unknown, null = none), its pattern and
+	 * crafts delivered.
 	 */
-	private final int[] sideJob = new int[6];
+	private static final java.util.UUID MIXED_JOBS = new java.util.UUID(0, 0);
+	private final java.util.UUID[] sideJob = new java.util.UUID[6];
 	private final PatternData[] sidePattern = new PatternData[6];
 	private final long[] sideCrafts = new long[6];
 
@@ -163,6 +167,16 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 				com.mojang.serialization.Codec.LONG.fieldOf("c").forGetter(Await::count),
 				com.mojang.serialization.Codec.LONG.fieldOf("t").forGetter(Await::since)
 		).apply(i, Await::new));
+	}
+
+	/** Saved cancel cleanup state of one side. */
+	private record SideJob(int side, java.util.UUID job, PatternData pattern, long crafts) {
+		static final com.mojang.serialization.Codec<SideJob> CODEC = com.mojang.serialization.codecs.RecordCodecBuilder.create(i -> i.group(
+				com.mojang.serialization.Codec.INT.fieldOf("s").forGetter(SideJob::side),
+				net.minecraft.core.UUIDUtil.CODEC.fieldOf("j").forGetter(SideJob::job),
+				PatternData.CODEC.fieldOf("p").forGetter(SideJob::pattern),
+				com.mojang.serialization.Codec.LONG.fieldOf("c").forGetter(SideJob::crafts)
+		).apply(i, SideJob::new));
 	}
 
 	public PatternProviderBlockEntity(BlockPos pos, BlockState state) {
@@ -420,6 +434,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 			if (fail == DispatchResult.NO_TARGET) fail = r.result() == DispatchResult.OK ? DispatchResult.BUSY : r.result();
 		}
 		if (ctx == null || r.result() != DispatchResult.OK || r.crafts() <= 0) return Dispatch.fail(fail);
+		throughput.add(now, r.crafts());
 		dispatchesThisTick = lastDispatch == now ? dispatchesThisTick + 1 : 1;
 		lastDispatch = now;
 		setChanged();
@@ -440,13 +455,14 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		}
 		// Cancel cleanup: whose inputs are in the machine on this side?
 		if (track) {
+			java.util.UUID job = jobUid != 0 ? eu.sytxlabs.tsautocraft.job.CraftingJob.persistentIdOf(jobUid) : null;
 			if (ctx.clean) {
-				sideJob[si] = jobUid;
+				sideJob[si] = job;
 				sidePattern[si] = p;
 				sideCrafts[si] = 0;
 			}
-			if (jobUid != 0 && sideJob[si] == jobUid && p.equals(sidePattern[si])) sideCrafts[si] += r.crafts();
-			else sideJob[si] = -1;
+			if (job != null && job.equals(sideJob[si]) && p.equals(sidePattern[si])) sideCrafts[si] += r.crafts();
+			else sideJob[si] = MIXED_JOBS;
 		}
 		// Redstone Upgrade: a pulse to the machine after every delivery (also starts a crafter in any trigger mode)
 		if (upgrades.count(ModContent.REDSTONE_UPGRADE) > 0) {
@@ -789,9 +805,11 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 	@Override
 	public long returnInputs(int jobUid, IInventoryAccess net) {
 		if (level == null || jobUid <= 0 || net == PlatformInventoryAccess.EMPTY) return 0;
+		java.util.UUID job = eu.sytxlabs.tsautocraft.job.CraftingJob.persistentIdOf(jobUid);
+		if (job == null) return 0;
 		long n = 0;
 		for (int i = 0; i < 6; i++) {
-			if (sideJob[i] != jobUid || sidePattern[i] == null) continue;
+			if (!job.equals(sideJob[i]) || sidePattern[i] == null) continue;
 			Direction side = Direction.values()[i];
 			PatternData p = sidePattern[i];
 			PatternMode mode = p.modeType();
@@ -803,9 +821,10 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 				n += got;
 				unlock(i);
 			}
-			sideJob[i] = 0;
+			sideJob[i] = null;
 			sidePattern[i] = null;
 			sideCrafts[i] = 0;
+			setChanged();
 		}
 		if (n > 0) setChanged();
 		return n;
@@ -907,7 +926,10 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 			ItemStack one = st.copyWithCount(1);
 			int c = st.getCount();
 			ItemStack rest = StorageUtil.push(net, st);
-			if (!rest.isEmpty()) buffer.add(rest);
+			if (!rest.isEmpty()) {
+				buffer.add(rest);
+				eu.sytxlabs.tsautocraft.network.TerminalCrafting.storageFull(level, worldPosition, rest);
+			}
 			eu.sytxlabs.tsautocraft.network.TerminalCrafting.itemsArrived(level, worldPosition, one, c);
 		}
 		setChanged();
@@ -957,6 +979,8 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		out.putInt("Priority", priority);
 		var locks = out.list("Awaiting", Await.CODEC);
 		for (int i = 0; i < 6; i++) if (awaitCount[i] > 0 && awaitKey[i] != null) locks.add(new Await(i, awaitKey[i].create(1), awaitCount[i], awaitSince[i]));
+		var jobs = out.list("SideJobs", SideJob.CODEC);
+		for (int i = 0; i < 6; i++) if (sideJob[i] != null && !MIXED_JOBS.equals(sideJob[i]) && sidePattern[i] != null) jobs.add(new SideJob(i, sideJob[i], sidePattern[i], sideCrafts[i]));
 	}
 
 	@Override
@@ -981,6 +1005,15 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 			awaitKey[a.side()] = new ItemKey(a.item());
 			awaitCount[a.side()] = a.count();
 			awaitSince[a.side()] = a.since();
+		});
+		java.util.Arrays.fill(sideJob, null);
+		java.util.Arrays.fill(sidePattern, null);
+		java.util.Arrays.fill(sideCrafts, 0);
+		in.listOrEmpty("SideJobs", SideJob.CODEC).stream().forEach(j -> {
+			if (j.side() < 0 || j.side() >= 6) return;
+			sideJob[j.side()] = j.job();
+			sidePattern[j.side()] = j.pattern();
+			sideCrafts[j.side()] = j.crafts();
 		});
 		patternCache = null;
 		eu.sytxlabs.tsautocraft.network.NetworkCache.patternsChanged();
@@ -1099,7 +1132,32 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 			}
 			lines.accept(Component.translatable("jade.tsautocraft.target", names));
 		}
+		Component rate = throughput.line("jade.tsautocraft.crafts_per_minute", level.getGameTime());
+		if (rate != null) lines.accept(rate);
 		if (!buffer.isEmpty()) lines.accept(Component.translatable("jade.tsautocraft.buffered", buffer.stream().mapToInt(ItemStack::getCount).sum()));
 		if (!network.isConnected(level, worldPosition)) lines.accept(Component.translatable("reason.tsautocraft.no_network"));
 	}
+
+	//region Memory Card
+
+	@Override
+	public void saveCard(ValueOutput out) {
+		out.putInt("LockMode", lockMode.ordinal());
+		out.putInt("Priority", priority);
+		out.putBoolean("Blocking", blocking);
+	}
+
+	@Override
+	public void loadCard(ValueInput in) {
+		lockMode = LockMode.byId(in.getIntOr("LockMode", lockMode.ordinal()));
+		if (lockMode != LockMode.UNTIL_RESULT) for (int i = 0; i < 6; i++) unlock(i);
+		blocking = in.getBooleanOr("Blocking", blocking);
+		setPriority(in.getIntOr("Priority", priority));
+	}
+
+	@Override
+	public UpgradeContainer cardUpgrades() {
+		return upgrades;
+	}
+	//endregion
 }

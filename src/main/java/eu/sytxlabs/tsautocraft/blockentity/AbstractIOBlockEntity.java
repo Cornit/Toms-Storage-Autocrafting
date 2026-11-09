@@ -43,7 +43,7 @@ import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
  * <p>
  * Upgrades: Speed (halves the interval each), Stack (4 times more items per operation each, up to a stack), Crafting (Exporter only).
  */
-public abstract class AbstractIOBlockEntity extends PaintedBlockEntity implements TickableServer, MenuProvider, Upgrades.UpgradeHost {
+public abstract class AbstractIOBlockEntity extends PaintedBlockEntity implements TickableServer, MenuProvider, Upgrades.UpgradeHost, MemoryCardHost {
 	protected final CustomName customName = new CustomName();
 	public static final int SLOTS = 9, UPGRADE_SLOTS = 3;
 
@@ -88,6 +88,7 @@ public abstract class AbstractIOBlockEntity extends PaintedBlockEntity implement
 
 	protected final NetworkLink network = new NetworkLink();
 	protected ItemStack buffer = ItemStack.EMPTY;
+	protected final eu.sytxlabs.tsautocraft.util.Throughput throughput = new eu.sytxlabs.tsautocraft.util.Throughput();
 	/** Number the {@link IOMode} keeps (round robin position). */
 	protected int cursor;
 	private IOMode mode;
@@ -315,6 +316,36 @@ public abstract class AbstractIOBlockEntity extends PaintedBlockEntity implement
 	protected void collectImplicitComponents(DataComponentMap.Builder builder) {
 		super.collectImplicitComponents(builder);
 		customName.collect(builder);
+	}
+	//endregion
+
+	//region Memory Card
+
+	@Override
+	public void saveCard(ValueOutput out) {
+		out.putString("Mode", getMode().id().toString());
+		out.putInt("RedstoneMode", redstoneMode);
+	}
+
+	@Override
+	public void loadCard(ValueInput in) {
+		mode = in.getString("Mode").map(net.minecraft.resources.Identifier::tryParse).map(id -> IOModes.get(id, upgradeHost(), defaultMode())).orElse(mode);
+		cursor = 0;
+		redstoneMode = Math.clamp(in.getIntOr("RedstoneMode", redstoneMode), 0, RS_MODES - 1);
+		toggleOn = false;
+		predicatesDirty = true;
+		wake();
+		setChanged();
+	}
+
+	@Override
+	public net.minecraft.world.Container cardFilters() {
+		return filters;
+	}
+
+	@Override
+	public UpgradeContainer cardUpgrades() {
+		return upgrades;
 	}
 	//endregion
 }

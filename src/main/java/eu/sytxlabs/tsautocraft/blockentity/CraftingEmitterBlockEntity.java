@@ -45,7 +45,7 @@ import eu.sytxlabs.tsautocraft.util.StorageUtil;
  *   <li>{@link #MODE_CRAFT}: the item counts as craftable (like an AE2 crafting card) and the signal is on while a job needs it - e.g. to switch a farm on. The items have to come back through an Importer (or storage).</li>
  * </ul>
  */
-public class CraftingEmitterBlockEntity extends PaintedBlockEntity implements TickableServer, MenuProvider, CraftingProvider, StatusInfo {
+public class CraftingEmitterBlockEntity extends PaintedBlockEntity implements TickableServer, MenuProvider, CraftingProvider, StatusInfo, MemoryCardHost {
 	private final CustomName customName = new CustomName();
 	public static final int MODE_BELOW = 0, MODE_ABOVE = 1, MODE_CRAFT = 2, MODES = 3;
 	public static final int MAX_AMOUNT = 1_000_000;
@@ -199,4 +199,20 @@ public class CraftingEmitterBlockEntity extends PaintedBlockEntity implements Ti
 		ItemStack st = item.getItem(0);
 		if (!st.isEmpty()) lines.accept(mode == MODE_CRAFT ? st.getHoverName() : Component.translatable("label.tsautocraft.item_count", amount, st.getHoverName()));
 	}
+
+	//region Memory Card (mode and amount; not the item)
+
+	@Override
+	public void saveCard(ValueOutput out) {
+		out.putInt("Amount", amount);
+		out.putInt("Mode", mode);
+	}
+
+	@Override
+	public void loadCard(ValueInput in) {
+		setAmount(in.getIntOr("Amount", amount));
+		mode = Math.clamp(in.getIntOr("Mode", mode), 0, MODES - 1);
+		onItemChanged();
+	}
+	//endregion
 }

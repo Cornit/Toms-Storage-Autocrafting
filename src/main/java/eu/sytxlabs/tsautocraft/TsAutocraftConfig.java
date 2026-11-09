@@ -158,4 +158,20 @@ public final class TsAutocraftConfig {
 		instance.sanitize();
 		write(file);
 	}
+
+	/** {@code /tsautocraft reload}: reads the file again; a broken file keeps the current values. */
+	public static boolean reload() {
+		Path file = file();
+		if (!Files.exists(file)) return false;
+		try (Reader r = Files.newBufferedReader(file)) {
+			TsAutocraftConfig cfg = GSON.fromJson(r, TsAutocraftConfig.class);
+			if (cfg == null) return false;
+			cfg.sanitize();
+			instance = cfg;
+			return true;
+		} catch (IOException | JsonParseException e) {
+			TsAutocraft.LOGGER.error("Could not read {}", file, e);
+			return false;
+		}
+	}
 }

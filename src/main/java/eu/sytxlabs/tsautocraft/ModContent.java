@@ -65,6 +65,9 @@ public final class ModContent {
 	/** Description line of our blocks and upgrades (default component, see {@link ItemDescription}). */
 	public static final DataComponentType<ItemDescription> DESCRIPTION_COMPONENT = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, TsAutocraft.id("description"), DataComponentType.<ItemDescription>builder().persistent(ItemDescription.CODEC).networkSynchronized(ItemDescription.STREAM_CODEC).build());
 
+	/** Settings stored on a Memory Card. */
+	public static final DataComponentType<MemoryCardData> MEMORY_CARD_COMPONENT = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, TsAutocraft.id("memory_card"), DataComponentType.<MemoryCardData>builder().persistent(MemoryCardData.CODEC).build());
+
 	// --- Blocks ---
 	public static final ConnectorNodeBlock EXPORTER = block("exporter", p -> new ConnectorNodeBlock(p.noOcclusion(), ExporterBlockEntity::new, false));
 	public static final FramedConnectorNodeBlock EXPORTER_FRAMED = block("exporter_framed", p -> new FramedConnectorNodeBlock(p.noOcclusion(), ExporterBlockEntity::new, false));
@@ -95,6 +98,8 @@ public final class ModContent {
 	/** Importer/Exporter: work only with / without a redstone signal or toggle on pulses; Pattern Provider: redstone pulse after every delivery. */
 	public static final Item REDSTONE_UPGRADE = upgrade("redstone_upgrade");
 	/** In-game guide, right click opens {@code client/GuideScreen}. */
+	/** Copies settings between blocks of the same type. */
+	public static final MemoryCardItem MEMORY_CARD = item("memory_card", MemoryCardItem::new, p -> p.stacksTo(1).component(DESCRIPTION_COMPONENT, new ItemDescription("tooltip.tsautocraft.memory_card", false)));
 	public static final GuideBookItem GUIDE_BOOK = item("guide_book", GuideBookItem::new, p -> p.stacksTo(1).component(DESCRIPTION_COMPONENT, new ItemDescription("tooltip.tsautocraft.guide_book", false)));
 
 	static {

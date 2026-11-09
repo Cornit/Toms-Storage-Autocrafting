@@ -3,6 +3,6 @@ Items anfordern
 Craftbare Items zeigen in jedem Tom's-Terminal im Netzwerk ein grünes +.
 
 - Strg + Klick auf ein craftbares Item, oder Klick auf eines mit Menge 0, öffnet den Anforderungsdialog.
-- Menge eingeben und Berechnen drücken: du bekommst eine Materialliste (aus dem Lager, zu craften, fehlt); der Knopf Baum/Liste zeigt stattdessen den Rezeptbaum (Zeilen per Klick auf-/zuklappen).
+- Menge eingeben und Berechnen drücken: du bekommst eine Materialliste (aus dem Lager, zu craften, fehlt); der Knopf Baum öffnet den Rezeptbaum als Graph: ziehen zum Verschieben, Mausrad zum Zoomen, Klick auf einen Knoten klappt ihn auf/zu; roter Rahmen = fehlt, blau = wird gecraftet, grau = aus dem Lager. Auch dort lässt sich der Auftrag starten.
 - Starten beginnt den Auftrag. Fehlt etwas, bietet ein Knopf die größte Menge an, die jetzt craftbar ist.
 - Im Crafting Terminal von Tom's kann der +-Knopf des Rezeptanzeigers fehlende Zutaten craften (Strg + Klick).

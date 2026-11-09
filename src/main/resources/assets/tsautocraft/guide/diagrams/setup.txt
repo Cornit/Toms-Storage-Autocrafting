@@ -1,0 +1,7 @@
+# Storage chest and connector in the middle; terminals above, the crafting line below.
+# The crafter must not touch the Inventory Connector (it would become storage).
+. ac:pattern_terminal . ac:autocrafting_terminal . .
+. | . | . .
+mc:chest ts:inventory_connector - + - ac:importer
+. | . . . v
+. ac:pattern_provider > mc:crafter > mc:chest

@@ -21,12 +21,24 @@ import eu.sytxlabs.tsautocraft.api.JobOwner;
  */
 public final class JobScheduler {
 	private static final Map<Level, Set<JobOwner>> PENDING = new HashMap<>();
+	/** Every owner that submitted itself (admin command); weak, so unloaded levels and block entities go away. */
+	private static final Map<Level, Set<JobOwner>> KNOWN = new java.util.WeakHashMap<>();
 
 	private JobScheduler() {}
 
 	public static void submit(JobOwner owner) {
 		if (!(owner instanceof BlockEntity be) || be.getLevel() == null || be.getLevel().isClientSide()) return;
 		PENDING.computeIfAbsent(be.getLevel(), l -> new LinkedHashSet<>()).add(owner);
+		KNOWN.computeIfAbsent(be.getLevel(), l -> java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>())).add(owner);
+	}
+
+	/** Owners of {@code level} that ran jobs since it was loaded and still exist. */
+	public static List<JobOwner> knownOwners(Level level) {
+		Set<JobOwner> set = KNOWN.get(level);
+		List<JobOwner> out = new ArrayList<>();
+		if (set == null) return out;
+		for (JobOwner o : set) if (!(o instanceof BlockEntity be) || !be.isRemoved()) out.add(o);
+		return out;
 	}
 
 	public static void started(JobOwner owner, CraftingJob job) {

@@ -12,8 +12,12 @@ The user (Shaun) talks German; reply in German.
   `26.3-neoforge`), Loom 1.16 via `dev.kikugie.loom-back-compat` (`build.fabric.gradle.kts`), ModDevGradle
   (`build.neoforge.gradle.kts`). Versions per MC version/loader in `stonecutter.properties.toml` (`deps.*`).
 - `gradlew build` (all nodes), `gradlew :26.3-fabric:runClient` / `:26.3-neoforge:runClient`, `gradlew :26.3-fabric:plannerTest`
-  (Minecraft-free planner self test, must print "All planner tests passed"). Jars: `versions/<node>/build/libs/tsautocraft-<loader>-<ver>+<mc>.jar`; `gradlew buildAndCollect` copies all of them to `build/libs/<mod.version>/`.
-- GitHub Actions: `.github/workflows/build.yml` (push/PR: buildAndCollect + plannerTest, jars as artifact), `release.yml` (tag `v<mod.version>`: GitHub release with the jars, notes = that version's CHANGELOG section).
+  (Minecraft-free planner self test, must print "All planner tests passed"), `gradlew :26.3-fabric:runGametest` (Fabric game
+  tests on a headless server, must print "All N required tests passed"; source set `gametest` = `src/gametest/{java,resources}`,
+  own test mod `tsautocraft-gametest`, not in the mod jar; setups built in code in `gametest/AutocraftGameTests`, report
+  `versions/26.3-fabric/build/gametest/report.xml`; Tom's terminal `FACING` = side it connects from, the connector scans its
+  inventories on its own ticks, so tests wait for `preview(...).ok()` before requesting). Jars: `versions/<node>/build/libs/tsautocraft-<loader>-<ver>+<mc>.jar`; `gradlew buildAndCollect` copies all of them to `build/libs/<mod.version>/`.
+- GitHub Actions: `.github/workflows/build.yml` (push/PR: buildAndCollect + plannerTest + runGametest, jars and game test report as artifacts), `release.yml` (tag `v<mod.version>`: GitHub release with the jars, notes = that version's CHANGELOG section).
 - Runtime log: `run/logs/latest.log` (Fabric), `run-neoforge/logs/latest.log` (NeoForge).
 - Loader split: shared code in `src/main`; `src/fabric/{java,resources}` and `src/neoforge/{java,resources}` hold classes with the
   SAME fully qualified names per loader (only one folder is compiled per node): `platform/Platform` (config dir, mod loaded,
@@ -30,27 +34,17 @@ The user (Shaun) talks German; reply in German.
   `match("<mc>", "fabric", "neoforge")` in `settings.gradle.kts` + its sections in `stonecutter.properties.toml`.
 - Forge: not possible, Tom's Storage has no Forge build after 1.20.1.
 
-## Status (2026-11-02)
+## Status (2026-11-09)
 
-- `gradlew build` (also with `-Xlint:deprecation,unchecked,rawtypes`: no warnings) and `plannerTest` are green; the dev client
-  boots into a world (Jade + our plugin load, machine profile loads).
-- 0.2.0 (not all tested in game yet): job scheduler with priority/pause and per-step status, public API package,
-  machine profiles, planner hooks, fluid pattern mode, Exporter/Importer modes, stackable upgrades, Redstone Upgrade, anvil
-  names, wireless access, Jade plugin, Mod Menu config screen, full-block (omni) Pattern Provider, Crafting Emitter variants
-  (full block, connector, framed), tooltips via components.
-- 0.3.0 (2026-11-08, nothing tested in game): bug fixes from a review, Pattern Access Terminal, Level Maintainer, brewing
-  mode, provider lock mode/priority, return inputs on cancel, job history/ETA/recipe tree, JEI "craft missing", pattern
-  multiplier, guide book (see CHANGELOG.md).
-- 0.4.0 (2026-11-08, nothing tested in game): patterns on any inventory, provider named after its machine, big performance
-  pass (see Performance below), API VERSION 2 (`PatternData.derived`).
-- 0.4.1 (2026-11-08): idle backoff for Importer/Exporter (`work()` returns whether something moved, `wake()` on filter/mode/
-  redstone change, config `ioIdleMaxSkip`).
-- 0.5.0 (2026-11-08, not tested in game): provider targets need item/fluid storage or a machine profile
-  (`isTarget`); Ctrl shows pattern outputs in every container slot (`mixin/client/AbstractContainerScreenMixin`);
-  `CraftRequestScreen` compact amount view (`H_INPUT`, rebuilt on preview switch), math via `util/MathExpr` (26.3 `EditBox` has no `setFilter`).
-- Next: test in game (job list buttons/tooltips, Jade, upgrades stacking, IO modes + ghost/real filters, Redstone Upgrade on
-  IO and in front of a crafter, omni provider with several crafters, fluid pattern + Importer filling, brewing stand profile,
-  wireless terminals, config screen with `-PwithModMenu`, framed directional emitter).
+- `gradlew build` (also with `-Xlint:deprecation,unchecked,rawtypes`: no warnings), `plannerTest` and `runGametest` are green.
+- 0.2.0 - 0.5.0 tested in game by the user (2026-11-09). Feature scope agreed as complete after 0.5.0 (no notification on
+  job end, no fuzzy matching, no own assembler block, no job size limits, no history search, no crafting monitor, no
+  per-request pattern choice, no pattern text export, no JEI hotkey request); next: new MC versions (26.4 when Tom's has it).
+- 0.5.0 (2026-11-09, last additions not tested in game yet): Memory Card, recipe tree graph, history "request again",
+  "storage full" reason, Jade throughput, `/tsautocraft` command, persistent job ids, game tests. Earlier in 0.5.0: provider
+  targets need item/fluid storage or a machine profile (`isTarget`); Ctrl shows pattern outputs in every container slot
+  (`mixin/client/AbstractContainerScreenMixin`); `CraftRequestScreen` compact amount view (`H_INPUT`, rebuilt on preview
+  switch), math via `util/MathExpr` (26.3 `EditBox` has no `setFilter`).
 - 26.3 API notes: GUI uses `GuiGraphicsExtractor`, `extractBackground/extractLabels/extractRenderState`, `MouseButtonEvent`,
   `KeyEvent`; `Inventory.placeItemBackInInventory(stack, Prediction)`; `Item.appendHoverText` and
   `BlockEntity.removeComponentsFromTag` are deprecated. When unsure, check Tom's Storage source (github.com/tom5454/Toms-Storage,
@@ -118,7 +112,9 @@ The user (Shaun) talks German; reply in German.
   shift = 10): `NetworkLink.providers` sorts by `providerPriority()` desc (stable) -> dispatch order and planner pattern order.
 - Cancel cleanup (`returnInputsOnCancel`): `CraftingJob.cancel` -> `TerminalCrafting.returnInputs(uid)` ->
   `CraftingProvider.returnInputs`. Jobs dispatch with `dispatch(..., uid)`; the provider remembers per side the job whose
-  deliveries filled it since it last held no pattern inputs (`sideJob`, runtime only: lost on restart, -1 = mixed jobs).
+  deliveries filled it since it last held no pattern inputs (`sideJob` = `CraftingJob.persistentId` UUID, `MIXED_JOBS` =
+  several; saved with `sidePattern`/`sideCrafts` as `SideJobs`). Runtime `uid` -> persistent id via
+  `CraftingJob.persistentIdOf` (registered on `bind`, so preview plans never are; removed on DONE and after a cancel's return).
   Returns: crafter contents if they match the pattern and no craft tick is scheduled (+ `pendingTriggers` cleared), furnace
   input slot, processing: full input sets extractable via the insert face (not with machine profiles, fluid, brewing,
   third-party modes). Partly consumed sets stay; results of running crafts are no longer credited to the cancelled job.
@@ -174,17 +170,38 @@ The user (Shaun) talks German; reply in German.
 - Guide book `guide_book` (`GuideBookItem`, book + blank pattern): right click opens client-only `client/GuideScreen` via
   `GuideBookItem.opener`. Pages = `PAGES` list (id + icons), text in `assets/tsautocraft/guide/<lang>/<id>.txt` (line 1 =
   title, rest = text; selected language, fallback en_us; read in `init`); long texts
-  are split into sheets automatically, sheet 0 = table of contents. New page: add to `PAGES` + a file in every language folder.
-  Pictures = `.diagram("row", ...)`: item icons (`mc:`/`ts:`/`ac:` ids), arrows `> < ^ v`, cables `- |`, `.` empty; drawn live
+  are split into sheets automatically, the first sheets = table of contents (one column per sheet). Drawn as an open book:
+  two sheets (pages of `PAGE_W`) side by side, `current` is always even, turning moves a spread; wide diagrams are scaled
+  down to the page width via `g.pose()`. New page: add to `PAGES` + a file in every language folder.
+  Pictures = `guide/diagrams/<id>.txt` (language independent, resource packs can replace them; one row per line, `#` comment):
+  item icons (`mc:`/`ts:`/`ac:` ids), arrows `> < ^ v`, cables `-` `|` and `+` (junction/corner, joins neighbouring cables and items), `.` empty; drawn live
   above the text of the page's first sheet (no PNG screenshots).
 - `CraftRequestScreen`: failed preview gets `tsac_max` (binary search `CraftingJob.maxPossible`) -> "Craft N" button.
   Recipe tree: `CraftingPlanner.plan(..., recordTree)` builds `Node`s (need -> stock/crafts/missing, children = pattern inputs;
   alternatives roll back their children); `CraftingJob.TreeLine` = flattened pre-order (max 200 lines / depth 16, empty item =
-  "n more"), sent as `tsac_tree`; "Tree/List" button in the preview, click on a line collapses it.
+  "n more"), sent as `tsac_tree`; the "Tree" button opens `client/RecipeTreeScreen` (full screen graph: nodes = slot with
+  icon + amount, frame red/blue/grey = missing/crafted/stored, subtree-width layout top-down, right-angled edges; drag /
+  arrow keys pan, wheel zooms 50-200 % via `g.pose()` scale, click collapses (+N badge); starts collapsed from depth 2 except
+  paths to missing items; "Start" returns to the request screen and calls its `start()`, data packets are forwarded to it).
 - Job history: `AutocraftingTerminalBlockEntity` records its own finished jobs and watches the running jobs of the other owners
   on the network (scan every 20 ticks, keeps the job reference until it is finished) -> `JobHistoryEntry` list ("History",
   config `jobHistorySize`, newest first), synced as `hist`, tabs "Running/History" in the bar above the job list, `hclear` clears.
   Several terminals on one network each keep the network history. `CraftingJob.startTime` (codec `start`) set on first `bind`.
+  "↻" (column `CANCEL_X`) on non-automatic history rows opens `CraftRequestScreen` with item and amount.
+- Storage full: Importer (and provider `flushResults`) call `TerminalCrafting.storageFull` when a push leaves a rest;
+  steps in flight for that primary output get `fullAt`, shown as `Reason.STORAGE_FULL` for 40 ticks (step and WAITING job).
+- Throughput: `util/Throughput` (transient, 100-tick windows, EMA 0.3, idle windows decay): provider crafts/min (per
+  dispatch), Importer/Exporter items/min, Jade line only when > 0.
+- Admin command `command/TsAutocraftCommand` (`/tsautocraft reload|jobs|cancel <uid>`, `Commands.LEVEL_GAMEMASTERS`), registered
+  by Fabric `CommandRegistrationCallback` / NeoForge `RegisterCommandsEvent`. Jobs come from `JobScheduler.knownOwners(level)`
+  (weak set of every owner that submitted); `TsAutocraftConfig.reload()` keeps the old values if the file is broken.
+- Memory Card (`MemoryCardItem`, component `MEMORY_CARD_COMPONENT` = `MemoryCardData(type, settings, filters, upgrades)`,
+  recipe RGR/GCG/RGR with C = Blank Pattern): BEs implement `blockentity/MemoryCardHost` (`saveCard`/`loadCard` = settings
+  without real items, `cardFilters()`, `cardUpgrades()`): Pattern Provider, Exporter/Importer (`AbstractIOBlockEntity`),
+  Requester, Level Maintainer, Crafting Emitter (mode + amount only). Type = block entity type id (variants match).
+  Real filters (`IItemFilter`) need an unconfigured one (no component patch) from the inventory, replaced ones go back
+  (`placeItemBackInInventory`); upgrades are topped up from the inventory; creative creates them. `NodeBlock`/
+  `ConnectorNodeBlock`/framed `useItemOn` return PASS for the card so `useOn` runs instead of the GUI.
 - ETA: `job/JobEta` (transient) measures `doneCrafts` per 100-tick window, EMA 0.3; `JobView.eta` seconds (-1 unknown), shown
   in the job tooltip (`JobText.eta`).
 - Craft missing (JEI/REI "+" in Tom's Crafting Terminal): client mixins on Tom's `jei/CraftingTerminalTransferHandler` and `rei/ReiTransferHandler`

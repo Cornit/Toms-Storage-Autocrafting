@@ -144,6 +144,11 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 				return true;
 			}
 		}
+		JobHistoryEntry again = againAt(mx, my);
+		if (again != null) {
+			minecraft.gui.setScreen(new CraftRequestScreen(this, again.target(), again.amount()));
+			return true;
+		}
 		if (!showHistory && mx >= PRIO_X && mx < 170 && my >= JOBS_Y && my < JOBS_Y + JOB_ROWS * JOB_H) {
 			int row = (int) ((my - JOBS_Y) / JOB_H);
 			List<JobView> visible = visibleJobs();
@@ -243,6 +248,7 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		if (past != null) graphics.setComponentTooltipForNextFrame(font, tooltipCache.computeIfAbsent(past, _ -> historyTooltip(past)), mouseX, mouseY);
 		Component tab = tabTooltip(mouseX - leftPos, mouseY - topPos);
 		if (tab != null) graphics.setTooltipForNextFrame(font, tab, mouseX, mouseY);
+		if (againAt(mouseX - leftPos, mouseY - topPos) != null) graphics.setTooltipForNextFrame(font, Component.translatable("tooltip.tsautocraft.history.again"), mouseX, mouseY);
 		Component button = jobButtonTooltip(mouseX - leftPos, mouseY - topPos);
 		if (button != null) graphics.setTooltipForNextFrame(font, button, mouseX, mouseY);
 	}
@@ -258,6 +264,16 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 		return Component.translatable("tooltip.tsautocraft.job.priority", priorityName(j.priority()));
 	}
 
+	/** History entry whose "request again" button is under the mouse (player jobs only), or null. */
+	private JobHistoryEntry againAt(double mx, double my) {
+		if (!showHistory || mx < CANCEL_X || mx >= 170 || my < JOBS_Y || my >= JOBS_Y + JOB_ROWS * JOB_H) return null;
+		int row = (int) ((my - JOBS_Y) / JOB_H);
+		List<JobHistoryEntry> visible = visibleHistory();
+		if (row >= visible.size()) return null;
+		JobHistoryEntry h = visible.get(row);
+		return h.automatic() || h.target().isEmpty() || h.amount() <= 0 ? null : h;
+	}
+
 	private Component tabTooltip(double mx, double my) {
 		if (my < TABS_Y || my >= TABS_Y + TAB_H) return null;
 		if (showHistory && !menu.history.isEmpty() && mx >= CANCEL_X && mx < 170) return Component.translatable("tooltip.tsautocraft.history.clear");
@@ -266,7 +282,7 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 	}
 
 	private JobHistoryEntry historyAt(double mx, double my) {
-		if (mx < GRID_X || mx >= 170 || my < JOBS_Y || my >= JOBS_Y + JOB_ROWS * JOB_H) return null;
+		if (mx < GRID_X || mx >= CANCEL_X || my < JOBS_Y || my >= JOBS_Y + JOB_ROWS * JOB_H) return null;
 		int row = (int) ((my - JOBS_Y) / JOB_H);
 		List<JobHistoryEntry> visible = visibleHistory();
 		return row < visible.size() ? visible.get(row) : null;
@@ -413,9 +429,10 @@ public class AutocraftingTerminalScreen extends TSContainerScreen<AutocraftingTe
 			String text = rowCache.computeIfAbsent(h, _ -> {
 				Component result = Component.translatable(h.cancelled() ? "status.tsautocraft.cancelled" : "status.tsautocraft.done");
 				Component c = h.ticks() >= 0 ? Component.translatable("label.tsautocraft.history.line_time", h.amount(), h.target().getHoverName(), result, JobText.duration(h.ticks() / 20)) : Component.translatable("label.tsautocraft.history.line", h.amount(), h.target().getHoverName(), result);
-				return font.plainSubstrByWidth(c.getString(), 170 - 8);
+				return font.plainSubstrByWidth(c.getString(), CANCEL_X - 8 - 2);
 			});
 			g.text(font, text, 8, y, h.cancelled() ? 0xFF8B0000 : h.automatic() ? 0xFF1F3F8F : 0xFF1E6E1E, false);
+			if (!h.automatic() && !h.target().isEmpty()) g.text(font, "↻", CANCEL_X, y, 0xFF1F3F8F, false);
 		}
 	}
 

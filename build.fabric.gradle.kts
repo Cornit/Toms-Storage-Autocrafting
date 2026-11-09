@@ -60,14 +60,39 @@ sourceSets.main {
     resources.srcDir(rootProject.file("src/fabric/resources"))
 }
 
+// Fabric game tests (gradlew :26.3-fabric:runGametest): own source set + test mod, not part of the mod jar
+val gametest: SourceSet = sourceSets.create("gametest") {
+    java.srcDir(rootProject.file("src/gametest/java"))
+    resources.srcDir(rootProject.file("src/gametest/resources"))
+    compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
+}
+
 loom {
     fabricModJsonPath = rootProject.file("src/fabric/resources/fabric.mod.json")
+
+    mods {
+        register("tsautocraft") { sourceSet(sourceSets.main.get()) }
+        register("tsautocraft-gametest") { sourceSet(gametest) }
+    }
 
     runConfigs.all {
         runDir("../../run") // shared by all versions
         ideConfigGenerated(true)
         // Native crashes of the dev client (driver/overlay DLLs) otherwise leave no trace
         vmArg("-XX:ErrorFile=${rootProject.file("run")}/hs_err_pid%p.log")
+    }
+
+    runs {
+        register("gametest") {
+            server()
+            name = "Game Test"
+            source(gametest)
+            vmArg("-Dfabric-api.gametest")
+            vmArg("-Dfabric-api.gametest.report-file=${project.layout.buildDirectory.get().asFile}/gametest/report.xml")
+            runDir("build/gametest")
+            ideConfigGenerated(false)
+        }
     }
 }
 

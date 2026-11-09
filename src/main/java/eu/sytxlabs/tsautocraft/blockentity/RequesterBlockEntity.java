@@ -43,7 +43,7 @@ import eu.sytxlabs.tsautocraft.util.StorageUtil;
  * Requester: keeps up to 6 items at a minimum stock. When the network stock drops below the target amount,
  * a crafting job for the difference is started automatically (only one per entry, so nothing is crafted twice while results are still inside machines).
  */
-public class RequesterBlockEntity extends PlatformBlockEntity implements TickableServer, MenuProvider, JobOwner, StatusInfo {
+public class RequesterBlockEntity extends PlatformBlockEntity implements TickableServer, MenuProvider, JobOwner, StatusInfo, MemoryCardHost {
 	private final CustomName customName = new CustomName();
 	public static final int ENTRIES = 6;
 	public static final int MAX_AMOUNT = 1_000_000;
@@ -286,4 +286,25 @@ public class RequesterBlockEntity extends PlatformBlockEntity implements Tickabl
 		lines.accept(Component.translatable("jade.tsautocraft.entries", used, ENTRIES));
 		for (CraftingJob j : activeJobs()) lines.accept(JobText.line(j.view(true)));
 	}
+
+	//region Memory Card (entries are ghosts; changed entries cancel their jobs in updateServer)
+
+	@Override
+	public void saveCard(ValueOutput out) {
+		items.save(out, "Items");
+		var am = out.list("Amounts", Codec.INT);
+		for (int a : amounts) am.add(a);
+	}
+
+	@Override
+	public void loadCard(ValueInput in) {
+		items.load(in, "Items");
+		List<Integer> am = in.listOrEmpty("Amounts", Codec.INT).stream().toList();
+		for (int i = 0; i < ENTRIES; i++) {
+			amounts[i] = i < am.size() ? Math.clamp(am.get(i), 0, MAX_AMOUNT) : 0;
+			cooldown[i] = planFails[i] = 0;
+		}
+		setChanged();
+	}
+	//endregion
 }

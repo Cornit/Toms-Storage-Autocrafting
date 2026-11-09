@@ -3,6 +3,6 @@ Demander des items
 Les items fabricables affichent un + vert dans chaque terminal de Tom du réseau.
 
 - Ctrl + clic sur un item fabricable, ou clic sur un item de quantité 0, pour ouvrir la fenêtre de demande.
-- Entrez la quantité et appuyez sur Calculer : vous obtenez une liste de matériaux (du stockage, à fabriquer, manquant) ; le bouton Arbre/Liste affiche à la place l'arbre des recettes (clic sur une ligne pour la déplier ou la replier).
+- Entrez la quantité et appuyez sur Calculer : vous obtenez une liste de matériaux (du stockage, à fabriquer, manquant) ; le bouton Arbre ouvre l'arbre des recettes sous forme de graphe : glisser pour déplacer, molette pour zoomer, clic sur un nœud pour le déplier ou le replier ; cadre rouge = manquant, bleu = fabriqué, gris = du stockage. La tâche peut aussi être lancée depuis là.
 - Lancer démarre la tâche. S'il manque quelque chose, un bouton propose la plus grande quantité fabricable maintenant.
 - Dans le Crafting Terminal de Tom, le bouton + de la visionneuse de recettes peut fabriquer les ingrédients manquants (Ctrl + clic).

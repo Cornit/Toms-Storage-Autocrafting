@@ -54,7 +54,7 @@ import eu.sytxlabs.tsautocraft.util.UpgradeContainer;
  * Upgrades: Speed (halves the check interval each), Redstone (only maintain with / without a signal, or toggle on pulses;
  * running jobs always continue).
  */
-public class LevelMaintainerBlockEntity extends PlatformBlockEntity implements TickableServer, MenuProvider, JobOwner, StatusInfo, Upgrades.UpgradeHost {
+public class LevelMaintainerBlockEntity extends PlatformBlockEntity implements TickableServer, MenuProvider, JobOwner, StatusInfo, Upgrades.UpgradeHost, MemoryCardHost {
 	private final CustomName customName = new CustomName();
 	public static final int ENTRIES = 12, UPGRADE_SLOTS = 2;
 	public static final int MAX_THRESHOLD = 1_000_000;
@@ -423,4 +423,36 @@ public class LevelMaintainerBlockEntity extends PlatformBlockEntity implements T
 			default -> powered;
 		};
 	}
+
+	//region Memory Card (entries are ghosts)
+
+	@Override
+	public void saveCard(ValueOutput out) {
+		items.save(out, "Items");
+		var th = out.list("Thresholds", Codec.INT);
+		for (int a : thresholds) th.add(a);
+		var ba = out.list("Batches", Codec.INT);
+		for (int a : batches) ba.add(a);
+		out.putInt("RedstoneMode", redstoneMode);
+	}
+
+	@Override
+	public void loadCard(ValueInput in) {
+		items.load(in, "Items");
+		List<Integer> th = in.listOrEmpty("Thresholds", Codec.INT).stream().toList();
+		List<Integer> ba = in.listOrEmpty("Batches", Codec.INT).stream().toList();
+		for (int i = 0; i < ENTRIES; i++) {
+			setThreshold(i, i < th.size() ? th.get(i) : 0);
+			setBatch(i, i < ba.size() ? ba.get(i) : 0);
+		}
+		redstoneMode = Math.clamp(in.getIntOr("RedstoneMode", redstoneMode), 0, AbstractIOBlockEntity.RS_MODES - 1);
+		toggleOn = false;
+		setChanged();
+	}
+
+	@Override
+	public UpgradeContainer cardUpgrades() {
+		return upgrades;
+	}
+	//endregion
 }

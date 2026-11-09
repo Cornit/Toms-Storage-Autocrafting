@@ -79,6 +79,16 @@ public final class TerminalCrafting {
 		}
 	}
 
+	/** Results of {@code stack} could not be put into the full network at {@code pos}: jobs waiting for them show "storage full". */
+	public static void storageFull(Level level, BlockPos pos, ItemStack stack) {
+		if (stack.isEmpty()) return;
+		ItemKey key = new ItemKey(stack);
+		long now = level.getGameTime();
+		for (JobOwner owner : NetworkCache.of(level, pos).owners()) {
+			for (CraftingJob j : owner.activeJobs()) j.storageFull(key, now);
+		}
+	}
+
 	/**
 	 * Lock mode "until result returned": the arrived results unlock the providers waiting for them, the one that has
 	 * waited longest first. Independent of the jobs (results of a cancelled job still unlock the machine).

@@ -40,7 +40,7 @@ import eu.sytxlabs.tsautocraft.util.StorageUtil;
  */
 public class CraftingJob {
 	public enum State { RUNNING, WAITING, DONE, CANCELLED }
-	public enum Reason { NONE, WAITING_ITEMS, PROVIDER_BUSY, NO_PROVIDER, NO_TARGET, NO_SPACE, SLOT_DISABLED, WAITING_RESULT, NO_NETWORK, PAUSED }
+	public enum Reason { NONE, WAITING_ITEMS, PROVIDER_BUSY, NO_PROVIDER, NO_TARGET, NO_SPACE, SLOT_DISABLED, WAITING_RESULT, NO_NETWORK, PAUSED, STORAGE_FULL }
 	public static final int PRIORITY_LOW = -1, PRIORITY_NORMAL = 0, PRIORITY_HIGH = 1;
 
 	public static final class Step {
@@ -51,6 +51,8 @@ public class CraftingJob {
 		public long inFlight;
 		public long partial;
 		long flightSince = Long.MAX_VALUE;
+		/** Game time an Importer last could not put this step's results into the full network. */
+		long fullAt = Long.MIN_VALUE / 2;
 		Reason reason = Reason.NONE;
 		ItemStack reasonItem = ItemStack.EMPTY;
 		long need, have;
@@ -119,10 +121,14 @@ public class CraftingJob {
 		public static final Codec<Amount> CODEC = RecordCodecBuilder.create(i -> i.group(ItemStack.OPTIONAL_CODEC.fieldOf("i").forGetter(Amount::item), Codec.LONG.fieldOf("c").forGetter(Amount::count)).apply(i, Amount::new));
 	}
 
-	public static final Codec<CraftingJob> CODEC = RecordCodecBuilder.create(i -> i.group(Codec.INT.fieldOf("id").forGetter(j -> j.id), ItemStack.OPTIONAL_CODEC.fieldOf("target").forGetter(j -> j.target), Codec.LONG.fieldOf("amount").forGetter(j -> j.amount), Step.CODEC.listOf().fieldOf("steps").forGetter(j -> j.steps), Codec.INT.fieldOf("state").forGetter(j -> j.state.ordinal()), Codec.LONG.fieldOf("baseline").forGetter(j -> j.baseline), Codec.INT.optionalFieldOf("wait", 0).forGetter(j -> j.waitTicks), Amount.CODEC.listOf().optionalFieldOf("reserved", List.of()).forGetter(CraftingJob::reservedList), Codec.INT.optionalFieldOf("prio", PRIORITY_NORMAL).forGetter(j -> j.priority), Codec.BOOL.optionalFieldOf("paused", false).forGetter(j -> j.paused), Codec.BOOL.optionalFieldOf("tracked", false).forGetter(j -> j.tracked), Codec.LONG.optionalFieldOf("start", -1L).forGetter(j -> j.startTime)).apply(i, CraftingJob::new));
+	public static final Codec<CraftingJob> CODEC = RecordCodecBuilder.create(i -> i.group(Codec.INT.fieldOf("id").forGetter(j -> j.id), ItemStack.OPTIONAL_CODEC.fieldOf("target").forGetter(j -> j.target), Codec.LONG.fieldOf("amount").forGetter(j -> j.amount), Step.CODEC.listOf().fieldOf("steps").forGetter(j -> j.steps), Codec.INT.fieldOf("state").forGetter(j -> j.state.ordinal()), Codec.LONG.fieldOf("baseline").forGetter(j -> j.baseline), Codec.INT.optionalFieldOf("wait", 0).forGetter(j -> j.waitTicks), Amount.CODEC.listOf().optionalFieldOf("reserved", List.of()).forGetter(CraftingJob::reservedList), Codec.INT.optionalFieldOf("prio", PRIORITY_NORMAL).forGetter(j -> j.priority), Codec.BOOL.optionalFieldOf("paused", false).forGetter(j -> j.paused), Codec.BOOL.optionalFieldOf("tracked", false).forGetter(j -> j.tracked), Codec.LONG.optionalFieldOf("start", -1L).forGetter(j -> j.startTime), net.minecraft.core.UUIDUtil.CODEC.optionalFieldOf("pid").forGetter(j -> java.util.Optional.of(j.persistentId))).apply(i, CraftingJob::new));
 	private static final AtomicInteger NEXT_UID = new AtomicInteger();
 	public final int id;
 	public final int uid = NEXT_UID.incrementAndGet();
+	/** Runtime uid -> persistent id of unfinished jobs (providers remember jobs by persistent id across restarts). */
+	private static final Map<Integer, java.util.UUID> PERSISTENT_IDS = new java.util.concurrent.ConcurrentHashMap<>();
+	/** Survives restarts (the {@link #uid} does not); old saves get a random one. */
+	public final java.util.UUID persistentId;
 	public final ItemStack target;
 	private ItemKey targetKey;
 	public final long amount;
@@ -151,13 +157,14 @@ public class CraftingJob {
 	private long startTime = -1;
 	private final JobEta eta = new JobEta();
 
-	private CraftingJob(int id, ItemStack target, long amount, List<Step> steps, int state, long baseline, int waitTicks, List<Amount> reserved, int priority, boolean paused, boolean tracked, long startTime) {
-		this(id, target, amount, steps, state, baseline, waitTicks, reserved, priority, paused, tracked);
+	private CraftingJob(int id, ItemStack target, long amount, List<Step> steps, int state, long baseline, int waitTicks, List<Amount> reserved, int priority, boolean paused, boolean tracked, long startTime, java.util.Optional<java.util.UUID> persistentId) {
+		this(id, target, amount, steps, state, baseline, waitTicks, reserved, priority, paused, tracked, persistentId.orElseGet(java.util.UUID::randomUUID));
 		this.startTime = startTime;
 	}
 
-	private CraftingJob(int id, ItemStack target, long amount, List<Step> steps, int state, long baseline, int waitTicks, List<Amount> reserved, int priority, boolean paused, boolean tracked) {
+	private CraftingJob(int id, ItemStack target, long amount, List<Step> steps, int state, long baseline, int waitTicks, List<Amount> reserved, int priority, boolean paused, boolean tracked, java.util.UUID persistentId) {
 		this.id = id;
+		this.persistentId = persistentId;
 		this.priority = Math.clamp(priority, PRIORITY_LOW, PRIORITY_HIGH);
 		this.paused = paused;
 		this.tracked = tracked;
@@ -168,6 +175,11 @@ public class CraftingJob {
 		this.baseline = baseline;
 		this.waitTicks = waitTicks;
 		for (Amount a : reserved) if (!a.item().isEmpty() && a.count() > 0) this.reserved.merge(new ItemKey(a.item()), a.count(), Long::sum);
+	}
+
+	/** Persistent id of the unfinished job with runtime id {@code uid} (also right after a cancel), null if unknown. */
+	public static java.util.UUID persistentIdOf(int uid) {
+		return PERSISTENT_IDS.get(uid);
 	}
 
 	private List<Amount> reservedList() {
@@ -204,6 +216,8 @@ public class CraftingJob {
 		this.level = level;
 		this.ownerPos = ownerPos;
 		if (startTime < 0 && level != null) startTime = level.getGameTime();
+		// Only jobs that run (not plans of a preview) are known to the providers
+		if (!isFinished() && level != null && !level.isClientSide()) PERSISTENT_IDS.putIfAbsent(uid, persistentId);
 	}
 
 	/** Game time the job started, -1 if unknown. */
@@ -371,7 +385,7 @@ public class CraftingJob {
 		long baseline = StorageUtil.count(net, level, key);
 		List<Amount> reserve = new ArrayList<>();
 		result.fromStock().forEach((k, c) -> reserve.add(new Amount(k.create(1), c)));
-		return new PlanOutcome(new CraftingJob(id, target, amount, steps, State.RUNNING.ordinal(), baseline, 0, reserve, PRIORITY_NORMAL, false, false), Map.of(), materials, -1, treeLines(result.tree()));
+		return new PlanOutcome(new CraftingJob(id, target, amount, steps, State.RUNNING.ordinal(), baseline, 0, reserve, PRIORITY_NORMAL, false, false, java.util.UUID.randomUUID()), Map.of(), materials, -1, treeLines(result.tree()));
 	}
 
 	/** Largest amount below {@code amount} that can be crafted right now (binary search over complete plans), 0 if none. */
@@ -472,7 +486,9 @@ public class CraftingJob {
 			if (done || waitTicks > cfg.jobResultTimeoutSeconds * 20) {
 				finish(State.DONE);
 			} else {
-				setReason(Reason.WAITING_RESULT, target);
+				Step full = fullStep(level);
+				if (full != null) setReason(Reason.STORAGE_FULL, full.pattern.primaryOutput());
+				else setReason(Reason.WAITING_RESULT, target);
 			}
 			return;
 		}
@@ -533,6 +549,11 @@ public class CraftingJob {
 				step.provider = null;
 				step.providerName = null;
 			}
+			if (!stepProgressed && step.inFlight > 0 && isFull(step, level)) {
+				stepWhy = Reason.STORAGE_FULL;
+				step.reasonItem = step.pattern.primaryOutput();
+				step.need = step.have = 0;
+			}
 			step.reason = stepProgressed ? Reason.NONE : stepWhy;
 			if (!stepProgressed && (why == Reason.NONE || why.ordinal() < stepWhy.ordinal())) {
 				why = stepWhy;
@@ -556,6 +577,23 @@ public class CraftingJob {
 		}
 	}
 
+	private static final int FULL_TICKS = 40;
+
+	private static boolean isFull(Step s, Level level) {
+		return level != null && level.getGameTime() - s.fullAt < FULL_TICKS;
+	}
+
+	private Step fullStep(Level level) {
+		for (Step s : steps) if (s.inFlight > 0 && isFull(s, level)) return s;
+		return null;
+	}
+
+	/** An Importer could not put results of {@code key} into the network (storage full): shown as the reason of the steps waiting for them. */
+	public void storageFull(ItemKey key, long now) {
+		if (isFinished()) return;
+		for (Step s : steps) if (s.inFlight > 0 && key.equals(s.pattern.primaryKey())) s.fullAt = now;
+	}
+
 	private ItemKey targetKey() {
 		if (targetKey == null) targetKey = new ItemKey(target);
 		return targetKey;
@@ -568,6 +606,7 @@ public class CraftingJob {
 		reservationVersion++;
 		paused = false;
 		setReason(Reason.NONE, ItemStack.EMPTY);
+		if (end == State.DONE) PERSISTENT_IDS.remove(uid); // cancelled: removed after the inputs went back (cancel)
 		CraftingEvents.JOB_FINISHED.invoker().onFinished(this, end == State.CANCELLED);
 	}
 
@@ -672,6 +711,7 @@ public class CraftingJob {
 		if (inMachines && TsAutocraftConfig.get().returnInputsOnCancel && level != null && !level.isClientSide() && ownerPos != null) {
 			eu.sytxlabs.tsautocraft.network.TerminalCrafting.returnInputs(level, ownerPos, uid);
 		}
+		PERSISTENT_IDS.remove(uid);
 	}
 
 	public State state() {

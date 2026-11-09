@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "tsautocraft-gametest",
+  "version": "1.0.0",
+  "name": "Tom's Storage Autocrafting game tests",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "eu.sytxlabs.tsautocraft.gametest.AutocraftGameTests"
+    ]
+  },
+  "depends": {
+    "tsautocraft": "*",
+    "fabric-gametest-api-v1": "*"
+  }
+}

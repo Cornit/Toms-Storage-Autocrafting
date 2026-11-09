@@ -1,0 +1,9 @@
+Speicherkarte
+
+Kopiert die Einstellungen eines Blocks auf andere Blöcke gleichen Typs: Pattern Provider (Sperrmodus, Priorität, Blockieren), Exporter und Importer (Filter, Modus, Redstone-Modus), Requester und Level Maintainer (Einträge) und Crafting Emitter (Modus, Menge).
+
+- Shift + Rechtsklick auf einen Block: Einstellungen auf die Karte kopieren.
+- Rechtsklick auf einen Block gleichen Typs: übernehmen.
+- Shift + Rechtsklick in die Luft: Karte leeren.
+
+Die Karte erzeugt nie Items. Filter-Items (z. B. Tom's Item Filter) kommen aus deinem Inventar: ein unkonfigurierter der gleichen Art wird wie das Original eingestellt; ein Filter, der schon im Slot steckt, kommt zurück in dein Inventar. Fehlende Upgrades werden ebenfalls aus dem Inventar genommen. Was du nicht hast, wird übersprungen und aufgelistet. Namen vom Amboss werden nicht kopiert.

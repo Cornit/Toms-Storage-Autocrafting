@@ -32,7 +32,7 @@ public class FramedConnectorNodeBlock extends ConnectorNodeBlock implements IPai
 	@Override
 	protected InteractionResult useItemOn(ItemStack item, BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
 		if (tryScrape(item, state, world, pos, player, hand)) return InteractionResult.SUCCESS;
-		if (item.getItem() instanceof PaintKitItem) return InteractionResult.PASS;
+		if (item.getItem() instanceof PaintKitItem || item.getItem() instanceof eu.sytxlabs.tsautocraft.MemoryCardItem) return InteractionResult.PASS;
 		return InteractionResult.TRY_WITH_EMPTY_HAND;
 	}
 

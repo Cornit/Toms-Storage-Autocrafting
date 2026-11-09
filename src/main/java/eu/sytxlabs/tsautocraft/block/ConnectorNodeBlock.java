@@ -97,6 +97,12 @@ public class ConnectorNodeBlock extends BaseEntityBlock implements IInventoryCab
 	}
 
 	@Override
+	protected InteractionResult useItemOn(net.minecraft.world.item.ItemStack item, BlockState state, Level world, BlockPos pos, Player player, net.minecraft.world.InteractionHand hand, BlockHitResult hit) {
+		if (item.getItem() instanceof eu.sytxlabs.tsautocraft.MemoryCardItem) return InteractionResult.PASS;
+		return super.useItemOn(item, state, world, pos, player, hand, hit);
+	}
+
+	@Override
 	protected InteractionResult useWithoutItem(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
 		if (world.isClientSide()) return InteractionResult.SUCCESS;
 		if (world.getBlockEntity(pos) instanceof MenuProvider mp) player.openMenu(mp);

@@ -1,0 +1,9 @@
+Memory Card
+
+Copies the settings of a block to other blocks of the same type: Pattern Provider (lock mode, priority, blocking), Exporter and Importer (filters, mode, redstone mode), Requester and Level Maintainer (entries) and Crafting Emitter (mode, amount).
+
+- Shift + right click on a block: copy its settings onto the card.
+- Right click on a block of the same type: apply them.
+- Shift + right click into the air: clear the card.
+
+The card never creates items. Filter items (e.g. Tom's Item Filter) come from your inventory: an unconfigured one of the same kind is set up like the original; a filter already in the slot goes back into your inventory. Missing upgrades are taken from your inventory too. Whatever you do not have is skipped and listed. Names given in an anvil are not copied.

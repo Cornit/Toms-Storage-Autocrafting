@@ -24,6 +24,16 @@ jobs:
           chmod +x gradlew
           ./gradlew buildAndCollect :26.3-fabric:plannerTest --stacktrace
 
+      - name: Game tests (Fabric, headless server)
+        run: ./gradlew :26.3-fabric:runGametest --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gametest-report
+          path: versions/26.3-fabric/build/gametest/report.xml
+          if-no-files-found: ignore
+
       - uses: actions/upload-artifact@v4
         with:
           name: tsautocraft-jars

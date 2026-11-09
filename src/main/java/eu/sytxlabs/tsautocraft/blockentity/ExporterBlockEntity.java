@@ -157,9 +157,10 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 			if (room <= 0) continue;
 
 			ItemStack pulled = StorageUtil.pull(net, proto, room);
-			if (pulled.isEmpty()) continue;
+			if (pulled.isEmpty() || level == null) continue;
 
 			ItemStack rest = StorageUtil.insert(target, pulled);
+			throughput.add(level.getGameTime(), pulled.getCount() - rest.getCount());
 			if (!rest.isEmpty()) {
 				rest = StorageUtil.push(net, rest);
 				buffer = rest;
@@ -261,6 +262,10 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 
 	@Override
 	public void appendStatus(Consumer<Component> lines) {
+		if (level != null) {
+			Component t = throughput.line("jade.tsautocraft.items_per_minute", level.getGameTime());
+			if (t != null) lines.accept(t);
+		}
 		for (CraftingJob j : activeJobs()) lines.accept(JobText.line(j.view(true)));
 	}
 }
