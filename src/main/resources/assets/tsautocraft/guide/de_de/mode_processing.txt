@@ -1,0 +1,5 @@
+Modus: Verarbeitung
+
+Für jede Maschine mit Inventar. Freie Mengen für bis zu 9 Eingaben und 3 von Hand gesetzte Ausgaben (mit x2, /2, x10, /10 skalierbar). Der Provider legt alle Zutaten auf einmal ein oder gar nichts. Die Ausgaben müssen über einen Importer zurückkommen. Maschinenprofile (Datapack) legen pro Maschine fest, welche Seiten die Items bekommen (auch verschiedene Seiten für verschiedene Zutaten), einen Redstone-Puls, eine Pause zwischen zwei Lieferungen und Blockieren.
+
+Beispiel (Bild): Wasserflaschen. Ein Pattern Provider Connector befüllt einen Werfer, der auf eine Wasserquelle zeigt, Muster 1 Glasflasche -> 1 Wasserflasche. Das eingebaute Werfer-Profil gibt dem Werfer nach jeder Lieferung einen Redstone-Puls, so füllt er die Flasche; ein Importer mit Wasserflasche als Filter holt sie heraus.

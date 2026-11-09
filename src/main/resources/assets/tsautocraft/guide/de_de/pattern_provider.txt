@@ -1,0 +1,12 @@
+Pattern Provider
+
+Hält Muster (9 Felder, +9 pro Kapazitäts-Upgrade bis 36) und liefert die Zutaten an Maschinen, wenn ein Auftrag sie braucht.
+
+- Vollblock: beliefert alle angrenzenden Crafter und Maschinen nacheinander. Ein Redstone-Puls geht nur an die Maschine, die gerade befüllt wurde.
+- Connector (und verkleideter Connector): beliefert nur den Block, auf den er zeigt.
+- Crafting-Muster füllen einen Vanilla-Crafter in Musterreihenfolge. Verarbeitungsmuster legen alle Zutaten auf einmal ein oder gar nichts.
+- Blockiermodus: erst wieder liefern, wenn keine Zutaten mehr in der Maschine sind.
+- Sperrmodus: aus, bis das Ergebnis zurück ist (wartet auf den Importer), oder mit/ohne Redstone-Signal.
+- Priorität: Provider mit höherer Priorität werden zuerst benutzt.
+- Ergebnisse müssen über einen Importer (oder direkt ins Lager) zurückkommen.
+- Upgrades: Kapazität, Geschwindigkeit, Stapel, Redstone.

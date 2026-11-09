@@ -1,0 +1,9 @@
+Upgrades
+
+Upgrades kommen in die Leiste rechts neben der GUI; mehrere gleicher Art stapeln sich in einem Feld.
+
+- Kapazität: Autocrafting Terminal mehr parallele Aufträge; Pattern Provider 9 Musterfelder mehr.
+- Geschwindigkeit: Importer/Exporter kürzeres Intervall; Pattern Provider eine Lieferung mehr pro Tick; Bestandswächter kürzeres Prüfintervall.
+- Stapel: Importer/Exporter 4x mehr Items pro Vorgang; Pattern Provider 4x mehr Crafts pro Lieferung (bis 64).
+- Crafting: Exporter craftet fehlende Filter-Items.
+- Redstone: Importer/Exporter/Bestandswächter arbeiten nur mit oder ohne Signal oder schalten bei Pulsen um; Pattern Provider gibt der Maschine nach jeder Lieferung einen Puls.

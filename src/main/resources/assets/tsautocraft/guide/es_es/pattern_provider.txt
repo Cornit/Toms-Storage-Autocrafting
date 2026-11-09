@@ -1,0 +1,12 @@
+Pattern Provider
+
+Contiene patrones (9 ranuras, +9 por mejora de capacidad hasta 36) y entrega los ingredientes a las máquinas cuando un trabajo los necesita.
+
+- Bloque completo: abastece por turnos a cada fabricador o máquina adyacente. Un pulso de redstone solo va a la máquina que se acaba de llenar.
+- Conector (y conector revestido): solo abastece al bloque al que apunta.
+- Los patrones de crafting llenan un fabricador de vanilla en el orden del patrón. Los patrones de procesado insertan todas las entradas a la vez o nada.
+- Modo bloqueo: solo vuelve a enviar cuando no quedan ingredientes en la máquina.
+- Modo de cierre: desactivado, hasta que vuelva el resultado (espera al Importer), o con/sin señal de redstone.
+- Prioridad: los providers con mayor prioridad se usan primero.
+- Los resultados deben volver a través de un Importer (o directamente al almacén).
+- Mejoras: capacidad, velocidad, pila, redstone.

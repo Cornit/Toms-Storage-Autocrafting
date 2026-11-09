@@ -29,6 +29,7 @@ import eu.sytxlabs.tsautocraft.blockentity.StatusInfo;
  * Jade (entrypoint {@code jade}): status lines of our block entities ({@link StatusInfo}),
  * e.g. pattern count and target of a Pattern Provider or the running jobs of an Autocrafting Terminal. The server sends the lines as components.
  */
+@snownee.jade.api.WailaPlugin // NeoForge finds Jade plugins by this annotation, Fabric by the entrypoint
 public class TsAutocraftJadePlugin implements IWailaPlugin {
 	static final Identifier UID = TsAutocraft.id("status");
 	private static final String KEY = "tsac_status";

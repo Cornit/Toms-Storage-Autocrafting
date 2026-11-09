@@ -1,0 +1,5 @@
+Modo: Destilación
+
+Para el soporte para pociones. En este modo la cuadrícula del Pattern Terminal se parece al soporte para pociones: combustible arriba a la izquierda (opcional), ingrediente arriba en el centro, 1-3 frascos en la fila inferior (pueden ser distintos); los resultados se calculan a partir de las recetas de destilación, incluidas las de mods y datapacks.
+
+El provider llena un soporte vacío: frascos e ingrediente en cada destilación, el combustible solo cuando la ranura de combustible está vacía (no cuenta por destilación, un polvo de blaze dura 20 destilaciones). El "+" de JEI/REI codifica un soporte completo. El Importer espera hasta que la destilación termine, así que nunca se lleva pociones sin terminar.

@@ -56,9 +56,12 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 		@Override
 		public void setChanged() {
 			super.setChanged();
+			blankChanged();
 			PatternTerminalBlockEntity.this.setChanged();
 		}
 	};
+	/** Stack last seen in the top slot, to load an encoded pattern once when it is put in. */
+	private ItemStack lastBlank = ItemStack.EMPTY;
 	private PatternMode mode = PatternModes.CRAFTING;
 	private boolean substitutes;
 	private boolean loading;
@@ -142,6 +145,14 @@ public class PatternTerminalBlockEntity extends StorageTerminalBlockEntity {
 		patternSlots.setItem(SLOT_BLANK, blank.isEmpty() ? ItemStack.EMPTY : blank);
 		patternSlots.setItem(SLOT_RESULT, pattern);
 		return null;
+	}
+
+	/** An encoded pattern put into the top slot is loaded into the grid right away, so it can be edited and encoded again. */
+	private void blankChanged() {
+		ItemStack now = patternSlots.getItem(SLOT_BLANK);
+		boolean added = !ItemStack.isSameItemSameComponents(now, lastBlank);
+		lastBlank = now.copy();
+		if (added && !loading && level != null && !level.isClientSide() && PatternItem.get(now) != null) loadFromPattern();
 	}
 
 	public boolean loadFromPattern() {

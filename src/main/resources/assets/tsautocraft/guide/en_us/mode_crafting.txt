@@ -1,0 +1,3 @@
+Mode: Crafting
+
+For the vanilla Crafter. One item per grid slot; the result is computed from the recipe. The provider puts the items into crafter slots 0-8 in pattern order (shifted to enabled slots if some are disabled, see config). Without blocking mode, more sets of the same recipe are stacked on top. With substitutes on, any item that gives the same result may be used per slot (e.g. other planks). How the crafter is triggered depends on the config (crafterTrigger).

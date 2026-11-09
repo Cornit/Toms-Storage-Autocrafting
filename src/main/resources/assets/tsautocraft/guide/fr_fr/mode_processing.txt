@@ -1,0 +1,5 @@
+Mode : Traitement
+
+Pour toute machine dotée d'un inventaire. Quantités libres pour jusqu'à 9 entrées et 3 sorties définies à la main (utilisez x2, /2, x10, /10 pour les mettre à l'échelle). Le provider insère toutes les entrées d'un coup ou rien. Les sorties doivent revenir via un Importer. Les profils de machine (datapack) peuvent définir quelles faces reçoivent les items (aussi des faces différentes selon les entrées), une impulsion de redstone, une pause entre les livraisons et le blocage par machine.
+
+Exemple (image) : fioles d'eau. Un Pattern Provider Connector remplit un distributeur tourné vers une source d'eau, modèle 1 fiole -> 1 fiole d'eau. Le profil intégré du distributeur lui donne une impulsion de redstone après chaque livraison, il remplit donc la fiole ; un Importer avec une fiole d'eau comme filtre la retire.

@@ -1,0 +1,7 @@
+Exporter e Importer
+
+Exporter: envía objetos filtrados de la red al inventario al que apunta (sin filtros no hace nada). Los objetos reservados por trabajos nunca se exportan. Con una mejora de fabricación, los objetos del filtro que faltan se fabrican.
+
+Importer: saca objetos del inventario al que apunta y los mete en la red; sin filtro = todo. También informa de los resultados de los trabajos, así que ponlo en el cofre de salida detrás de fabricadores y máquinas.
+
+Filtros: los objetos normales son objetos fantasma; los objetos de filtro de Tom son objetos reales. Modos: por turnos, prioridad, aleatorio y lista negra (Importer). Mejoras: velocidad, pila, redstone. Las variantes revestidas se pueden pintar con el Paint Kit de Tom.

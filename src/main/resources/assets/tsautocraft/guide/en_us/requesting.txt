@@ -1,0 +1,8 @@
+Requesting items
+
+Craftable items show a green + in every Tom's terminal on the network.
+
+- Ctrl + click a craftable item, or click one with amount 0, to open the request dialog.
+- Enter the amount and press Calculate: you get a material list (from storage, to craft, missing); the Tree/List button shows the recipe tree instead (click a line to expand or collapse it).
+- Start begins the job. If something is missing, a button offers the largest amount that can be crafted now.
+- In Tom's Crafting Terminal the recipe viewer + button can craft missing ingredients (Ctrl + click).

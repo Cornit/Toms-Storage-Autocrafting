@@ -1,0 +1,31 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build all loaders and versions
+        run: |
+          chmod +x gradlew
+          ./gradlew buildAndCollect :26.3-fabric:plannerTest --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tsautocraft-jars
+          path: build/libs/*/*.jar
+          if-no-files-found: error

@@ -1,0 +1,3 @@
+Modo: Fundición
+
+Para hornos, altos hornos y ahumadores. El primer objeto de la cuadrícula es la entrada; el resultado sale de la receta del horno. El combustible corre de tu cuenta (p. ej. una tolva o un Exporter que meta carbón). Los resultados vuelven a través de un Importer en el horno o debajo de él.

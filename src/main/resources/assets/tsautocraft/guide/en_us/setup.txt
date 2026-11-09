@@ -1,0 +1,9 @@
+Minimal setup
+
+1. Build a Tom's storage: Inventory Connector next to chests, Inventory Cables from it.
+2. Connect an Autocrafting Terminal (runs the jobs) and a Pattern Terminal to the cables.
+3. Place a Pattern Provider on the cable network and a vanilla Crafter next to it.
+4. Let the crafter drop its result into a chest and put an Importer (connected to the cables) on that chest, so results go back into storage.
+5. The crafter needs a trigger: build your own redstone circuit, put a Redstone Upgrade into the provider, or set crafterTrigger to direct or redstone in the config.
+6. Encode a crafting pattern in the Pattern Terminal and put it into the provider.
+7. The item now shows a green + in every terminal. Ctrl + click it, enter an amount, Calculate, Start.

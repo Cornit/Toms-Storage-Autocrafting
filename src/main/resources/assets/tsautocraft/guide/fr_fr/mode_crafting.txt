@@ -1,0 +1,3 @@
+Mode : Fabrication
+
+Pour le Fabricateur vanilla. Un item par slot de la grille ; le résultat est calculé à partir de la recette. Le provider place les items dans les slots 0-8 du fabricateur dans l'ordre du modèle (décalés vers les slots activés si certains sont désactivés, voir la config). Sans mode bloquant, d'autres lots de la même recette sont empilés par-dessus. Avec les substituts activés, tout item donnant le même résultat peut être utilisé par slot (p. ex. d'autres planches). Le déclenchement du fabricateur dépend de la config (crafterTrigger).

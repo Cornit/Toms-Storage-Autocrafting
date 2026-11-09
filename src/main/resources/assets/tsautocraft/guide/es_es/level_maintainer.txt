@@ -1,0 +1,5 @@
+Mantenedor de stock
+
+Como el Requester, pero con 12 entradas de objeto, umbral y tamaño de lote: cuando las existencias (menos lo que han reservado otros trabajos) bajan del umbral, empieza un trabajo por la cantidad del lote. Un solo trabajo por entrada a la vez.
+
+Mejoras: velocidad (intervalo de comprobación más corto), redstone (mantener solo con o sin señal, o cambiar con cada pulso; los trabajos en curso siempre continúan).

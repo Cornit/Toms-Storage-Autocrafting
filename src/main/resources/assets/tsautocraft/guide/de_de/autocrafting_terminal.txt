@@ -1,0 +1,10 @@
+Autocrafting Terminal
+
+Führt die Crafting-Aufträge des Netzwerks aus; mindestens eines wird gebraucht. Es listet alle craftbaren Items und alle Aufträge im Netzwerk.
+
+- Item wählen, Menge eingeben und anfordern.
+- Jeder Auftrag zeigt seinen Fortschritt; im Tooltip stehen die Schritte und warum einer wartet (fehlende Items, beschäftigter Provider).
+- Knöpfe pro Auftrag: Priorität (hoch/normal/niedrig), Pause, Abbrechen. Beim Abbrechen können Zutaten, die noch in Maschinen stecken, zurückgegeben werden (Konfiguration returnInputsOnCancel).
+- Tabs Laufend/Verlauf: der Verlauf zeigt die letzten fertigen oder abgebrochenen Aufträge (✕ leert ihn), laufende zeigen im Tooltip die geschätzte Restzeit.
+- Aufträge reservieren ihre Materialien, zwei Aufträge nutzen also nie dieselben Items.
+- Kapazitäts-Upgrades erlauben mehr parallele Aufträge.

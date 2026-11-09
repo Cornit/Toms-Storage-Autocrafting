@@ -1,0 +1,5 @@
+Level Maintainer
+
+Like the Requester, but with 12 entries of item, threshold and batch size: when the stock (minus what other jobs reserved) drops below the threshold, a job for the batch amount starts. One job per entry at a time.
+
+Upgrades: Speed (shorter check interval), Redstone (maintain only with or without a signal, or toggle on pulses; running jobs always continue).

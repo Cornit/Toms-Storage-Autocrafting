@@ -1,0 +1,15 @@
+Overview
+
+This mod adds AE2-style autocrafting to Tom's Simple Storage. You teach the network recipes with patterns, and it crafts what you request - including all intermediate steps.
+
+Blocks:
+- Pattern Terminal: storage terminal that encodes patterns.
+- Pattern Provider: holds patterns and fills crafters and machines.
+- Autocrafting Terminal: runs and lists crafting jobs.
+- Pattern Access Terminal: all patterns of the network in one GUI.
+- Requester / Level Maintainer: keep items stocked.
+- Crafting Emitter: redstone signal by item amount or job demand.
+- Exporter / Importer: move items between the network and inventories.
+- Upgrades: Capacity, Speed, Stack, Crafting, Redstone.
+
+All blocks must be connected to the same Tom's Inventory Cable network as an Inventory Connector. Turn the page or use the contents.

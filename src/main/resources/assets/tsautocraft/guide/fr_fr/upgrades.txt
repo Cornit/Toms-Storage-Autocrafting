@@ -1,0 +1,9 @@
+Upgrades
+
+Les Upgrades se placent dans le panneau à droite de l'interface ; plusieurs du même type s'empilent dans un slot.
+
+- Capacité : Autocrafting Terminal plus de tâches en parallèle ; Pattern Provider 9 slots de modèles en plus.
+- Vitesse : Importer/Exporter intervalle plus court ; Pattern Provider une livraison de plus par tick ; Mainteneur de stock intervalle de vérification plus court.
+- Pile : Importer/Exporter 4x plus d'items par opération ; Pattern Provider 4x plus de fabrications par livraison (jusqu'à 64).
+- Fabrication : l'Exporter fabrique les items du filtre manquants.
+- Redstone : Importer/Exporter/Mainteneur de stock fonctionnent seulement avec ou sans signal ou basculent à chaque impulsion ; le Pattern Provider envoie une impulsion à la machine après chaque livraison.

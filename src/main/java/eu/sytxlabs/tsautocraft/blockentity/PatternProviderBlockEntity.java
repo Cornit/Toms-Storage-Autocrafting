@@ -30,10 +30,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
-import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
-import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
-import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
-import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
+import eu.sytxlabs.tsautocraft.transfer.ItemVariant;
+import eu.sytxlabs.tsautocraft.transfer.Storage;
+import eu.sytxlabs.tsautocraft.transfer.StorageView;
+import eu.sytxlabs.tsautocraft.transfer.Transaction;
 
 import com.tom.storagemod.block.IInventoryCable;
 import com.tom.storagemod.block.entity.IInventoryConnector;
@@ -121,6 +121,8 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 	private long lastDispatch = Long.MIN_VALUE / 2;
 	private int dispatchesThisTick;
 	private final List<ItemStack> buffer = new ArrayList<>();
+	/** Results made by a delivery itself (filled containers), pushed and credited on the next tick: the job counts the craft as in flight only after the dispatch. */
+	private final List<ItemStack> results = new ArrayList<>();
 	private final NetworkLink network = new NetworkLink();
 
 	/**
@@ -351,8 +353,10 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		BlockState s = level.getBlockState(p);
 		if (s.isAir() || s.getBlock() instanceof IInventoryCable) return false;
 		if (level.getBlockEntity(p) instanceof IInventoryConnector) return false;
+		var items = eu.sytxlabs.tsautocraft.transfer.ItemStorage.SIDED.find(level, p, s, null, d.getOpposite());
+		if (items == null && MachineProfiles.find(s) == eu.sytxlabs.tsautocraft.api.MachineProfile.DEFAULT && eu.sytxlabs.tsautocraft.transfer.FluidStorage.SIDED.find(level, p, s, null, d.getOpposite()) == null) return false;
 		// An inventory of the network itself: inputs would go straight back into storage
-		return !network.isNetworkStorage(level, worldPosition, net.fabricmc.fabric.api.transfer.v1.item.ItemStorage.SIDED.find(level, p, d.getOpposite()));
+		return !network.isNetworkStorage(level, worldPosition, items);
 	}
 
 	@Override
@@ -364,6 +368,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		for (int i = 0; i < 6; i++) if (signalTicks[i] > 0 && --signalTicks[i] == 0) signalOff = true;
 		if (signalOff) level.updateNeighborsAt(worldPosition, getBlockState().getBlock());
 		for (int i = 0; i < 6; i++) if (pendingTriggers[i] > 0) retrigger(Direction.values()[i]);
+		if (!results.isEmpty()) flushResults();
 		if (!buffer.isEmpty() && level.getGameTime() % 20 == 0) {
 			flushBuffer(network.access(level, worldPosition));
 		}
@@ -542,6 +547,13 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		public void giveBack(ItemStack stack) {
 			ItemStack rest = StorageUtil.push(net, stack);
 			if (!rest.isEmpty()) buffer.add(rest);
+		}
+
+		@Override
+		public void result(ItemStack stack) {
+			if (stack.isEmpty()) return;
+			results.add(stack);
+			setChanged();
 		}
 
 		@Override
@@ -885,6 +897,22 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		if (moved) setChanged();
 	}
 
+	/** Results of the last deliveries into the network, reported like Importer arrivals; what does not fit is buffered. */
+	private void flushResults() {
+		IInventoryAccess net = network.access(level, worldPosition);
+		if (net == PlatformInventoryAccess.EMPTY) return;
+		List<ItemStack> l = new ArrayList<>(results);
+		results.clear();
+		for (ItemStack st : l) {
+			ItemStack one = st.copyWithCount(1);
+			int c = st.getCount();
+			ItemStack rest = StorageUtil.push(net, st);
+			if (!rest.isEmpty()) buffer.add(rest);
+			eu.sytxlabs.tsautocraft.network.TerminalCrafting.itemsArrived(level, worldPosition, one, c);
+		}
+		setChanged();
+	}
+
 	/** Redstone signal from the provider to the machine on {@code toward} ("redstone" trigger mode, Redstone Upgrade, machine profile). */
 	public boolean emitsSignal(Direction toward) {
 		return signalTicks[toward.ordinal()] > 0;
@@ -921,6 +949,8 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		upgrades.save(out, "Upgrades");
 		var buf = out.list("Buffer", ItemStack.CODEC);
 		buffer.forEach(buf::add);
+		var res = out.list("Results", ItemStack.CODEC);
+		results.forEach(res::add);
 		out.putBoolean("Blocking", blocking);
 		out.putIntArray("PendingTriggers", pendingTriggers);
 		out.putInt("LockMode", lockMode.ordinal());
@@ -938,6 +968,8 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		upgrades.load(in, "Upgrades");
 		buffer.clear();
 		in.listOrEmpty("Buffer", ItemStack.CODEC).stream().forEach(buffer::add);
+		results.clear();
+		in.listOrEmpty("Results", ItemStack.CODEC).stream().forEach(results::add);
 		blocking = in.getBooleanOr("Blocking", true);
 		java.util.Arrays.fill(pendingTriggers, 0);
 		in.getIntArray("PendingTriggers").ifPresent(a -> System.arraycopy(a, 0, pendingTriggers, 0, Math.min(6, a.length)));
@@ -961,6 +993,8 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		Containers.dropContents(level, pos, upgrades);
 		for (ItemStack st : buffer) Containers.dropItemStack(level, pos.getX(), pos.getY(), pos.getZ(), st);
 		buffer.clear();
+		for (ItemStack st : results) Containers.dropItemStack(level, pos.getX(), pos.getY(), pos.getZ(), st);
+		results.clear();
 	}
 
 	@Override
@@ -1014,7 +1048,7 @@ public class PatternProviderBlockEntity extends PaintedBlockEntity implements Ti
 		List<Direction> sides = new ArrayList<>(6);
 		if (st.hasProperty(ConnectorNodeBlock.FACING)) {
 			Direction d = st.getValue(ConnectorNodeBlock.FACING);
-			if (!level.getBlockState(worldPosition.relative(d)).isAir()) sides.add(d);
+			if (isTarget(d)) sides.add(d);
 		} else {
 			int mask = targetMask();
 			for (Direction d : Direction.values()) if ((mask & 1 << d.get3DDataValue()) != 0) sides.add(d);

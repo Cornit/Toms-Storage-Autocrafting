@@ -1,0 +1,7 @@
+Exporter et Importer
+
+Exporter : pousse les items filtrés du réseau dans l'inventaire vers lequel il est tourné (sans filtre, rien ne se passe). Les items réservés par des tâches ne sont jamais exportés. Avec un Upgrade de fabrication, les items du filtre manquants sont fabriqués.
+
+Importer : tire les items de l'inventaire vers lequel il est tourné dans le réseau ; aucun filtre = tout. Il signale aussi les résultats des tâches, placez-le donc sur le coffre de sortie derrière les fabricateurs et les machines.
+
+Filtres : les items simples sont des items fantômes ; les items filtres de Tom sont de vrais items. Modes : tour à tour, priorité, aléatoire et liste noire (Importer). Upgrades : vitesse, pile, redstone. Les variantes habillées peuvent être peintes avec le Paint Kit de Tom.

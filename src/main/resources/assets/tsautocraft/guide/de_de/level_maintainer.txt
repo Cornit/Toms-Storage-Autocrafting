@@ -1,0 +1,5 @@
+Bestandswächter
+
+Wie der Requester, aber mit 12 Einträgen aus Item, Schwelle und Losgröße: fällt der Bestand (abzüglich der Reservierungen anderer Aufträge) unter die Schwelle, startet ein Auftrag über die Losgröße. Ein Auftrag pro Eintrag gleichzeitig.
+
+Upgrades: Geschwindigkeit (kürzeres Prüfintervall), Redstone (nur mit oder ohne Signal arbeiten oder bei Pulsen umschalten; laufende Aufträge laufen immer weiter).

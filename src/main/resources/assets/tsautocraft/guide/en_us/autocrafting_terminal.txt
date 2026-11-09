@@ -1,0 +1,10 @@
+Autocrafting Terminal
+
+Runs the crafting jobs of the network; at least one is needed. It lists all craftable items and all jobs on the network.
+
+- Select an item, enter an amount and request it.
+- Each job shows its progress; hover for the steps and why one waits (missing items, busy provider).
+- Buttons per job: priority (high/normal/low), pause, cancel. When a job is cancelled, inputs still inside machines can be returned (config returnInputsOnCancel).
+- Tabs Running/History: the history lists the last finished or cancelled jobs (✕ clears it), running jobs show the estimated time left in their tooltip.
+- Jobs reserve their materials, so two jobs never use the same items.
+- Capacity Upgrades allow more parallel jobs.

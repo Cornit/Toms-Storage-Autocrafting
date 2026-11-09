@@ -1,0 +1,8 @@
+JEI et REI
+
+- Pattern Terminal : le bouton + remplit la grille avec la recette (le mode est choisi selon le type de recette), ou glissez des items sur les slots de la grille.
+- Pattern Provider : + encode la recette directement dans un slot libre, avec un Modèle vierge de votre inventaire.
+- Requester : + place la sortie de la recette dans une entrée ; glissez des items sur les entrées.
+- Exporter/Importer : glissez des items sur les slots de filtre.
+- Crafting Terminal de Tom : + avec Ctrl + clic fabrique les ingrédients manquants.
+REI fonctionne comme JEI (moins testé).

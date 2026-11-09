@@ -1,0 +1,9 @@
+Mejoras
+
+Las mejoras van en el panel a la derecha de la interfaz; varias del mismo tipo se apilan en una ranura.
+
+- Capacidad: Autocrafting Terminal más trabajos en paralelo; Pattern Provider 9 ranuras de patrón más.
+- Velocidad: Importer/Exporter intervalo más corto; Pattern Provider una entrega más por tick; Mantenedor de stock intervalo de comprobación más corto.
+- Pila: Importer/Exporter 4x más objetos por operación; Pattern Provider 4x más procesos por entrega (hasta 64).
+- Fabricación: el Exporter fabrica los objetos del filtro que faltan.
+- Redstone: Importer/Exporter/Mantenedor de stock funcionan solo con o sin señal o cambian con cada pulso; el Pattern Provider da un pulso a la máquina tras cada entrega.

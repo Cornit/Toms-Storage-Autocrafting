@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "eu.sytxlabs.tsautocraft.mixin",
+  "plugin": "eu.sytxlabs.tsautocraft.compat.TsAutocraftMixinPlugin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "client.ReiTransferHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

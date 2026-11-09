@@ -1,0 +1,8 @@
+JEI und REI
+
+- Pattern Terminal: der +-Knopf füllt das Raster mit dem Rezept (der Modus ergibt sich aus der Rezeptart), oder Items auf Rasterfelder ziehen.
+- Pattern Provider: + kodiert das Rezept direkt in ein freies Feld und nimmt dafür ein leeres Muster aus deinem Inventar.
+- Requester: + legt die Rezeptausgabe in einen Eintrag; Items auf Einträge ziehen.
+- Exporter/Importer: Items auf Filterfelder ziehen.
+- Tom's Crafting Terminal: + mit Strg + Klick craftet fehlende Zutaten.
+REI funktioniert wie JEI (weniger getestet).

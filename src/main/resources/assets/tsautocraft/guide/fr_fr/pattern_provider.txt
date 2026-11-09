@@ -1,0 +1,12 @@
+Pattern Provider
+
+Contient des modèles (9 slots, +9 par Upgrade de capacité jusqu'à 36) et livre les ingrédients aux machines quand une tâche en a besoin.
+
+- Bloc plein : approvisionne tour à tour chaque fabricateur ou machine adjacent. Une impulsion de redstone ne va qu'à la machine qui vient d'être remplie.
+- Connecteur (et connecteur habillé) : n'approvisionne que le bloc vers lequel il est tourné.
+- Les modèles de fabrication remplissent un Fabricateur vanilla dans l'ordre du modèle. Les modèles de traitement insèrent toutes les entrées d'un coup ou rien.
+- Mode bloquant : ne relivrer que lorsqu'il ne reste plus d'ingrédients dans la machine.
+- Mode de verrou : désactivé, jusqu'au retour du résultat (attend l'Importer), ou avec/sans signal de redstone.
+- Priorité : les providers de priorité plus haute sont utilisés en premier.
+- Les résultats doivent revenir via un Importer (ou directement dans le stockage).
+- Upgrades : capacité, vitesse, pile, redstone.

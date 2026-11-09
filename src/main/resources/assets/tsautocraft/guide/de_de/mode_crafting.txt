@@ -1,0 +1,3 @@
+Modus: Crafting
+
+Für den Vanilla-Crafter. Ein Item pro Rasterfeld; das Ergebnis wird aus dem Rezept berechnet. Der Provider legt die Items in Musterreihenfolge in die Crafter-Felder 0-8 (verschoben auf aktive Felder, wenn welche deaktiviert sind, siehe Konfiguration). Ohne Blockiermodus werden weitere Sätze desselben Rezepts obendrauf gestapelt. Mit Ersatzstoffen darf pro Feld jedes Item mit gleichem Ergebnis verwendet werden (z. B. andere Bretter). Wie der Crafter ausgelöst wird, legt die Konfiguration fest (crafterTrigger).

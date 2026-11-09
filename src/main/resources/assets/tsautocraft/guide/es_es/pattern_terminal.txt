@@ -1,0 +1,11 @@
+Pattern Terminal
+
+Un terminal de almacenamiento de Tom (búsqueda, orden, modo alto) con una zona de codificación en lugar de una cuadrícula de fabricación.
+
+- Botón de modo (izquierda): crafting, procesado, fundición, fluidos, destilación (y modos de otros mods).
+- Cuadrícula: objetos fantasma, no se gasta nada. En modo crafting un objeto por ranura y el resultado se calcula. En los modos libres, clic izquierdo con una pila fija su cantidad y clic derecho añade/quita uno.
+- Salidas: se fijan a mano en los modos libres.
+- x2, /2, x10, /10 (a la derecha de la zona de codificación, solo modos libres): escalan todas las cantidades a la vez. Aparecen en gris cuando una cantidad superaría 999 o dejaría de ser un número entero.
+- S: sustitutos sí/no (solo crafting; se puede usar cualquier objeto que dé el mismo resultado).
+- X: vaciar la cuadrícula, L: cargar de nuevo en la cuadrícula el patrón de la ranura de patrones vacíos.
+- Pon patrones vacíos en la ranura superior y pulsa Codificar. Un patrón con nombre conserva su nombre al volver a codificarlo.

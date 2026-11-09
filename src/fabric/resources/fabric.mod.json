@@ -22,10 +22,10 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "eu.sytxlabs.tsautocraft.TsAutocraft"
+      "eu.sytxlabs.tsautocraft.fabric.TsAutocraftFabric"
     ],
     "client": [
-      "eu.sytxlabs.tsautocraft.TsAutocraftClient"
+      "eu.sytxlabs.tsautocraft.fabric.TsAutocraftFabricClient"
     ],
     "jei_mod_plugin": [
       "eu.sytxlabs.tsautocraft.compat.jei.TsAutocraftJeiPlugin"
@@ -41,12 +41,13 @@
     ]
   },
   "mixins": [
-    "tsautocraft.mixins.json"
+    "tsautocraft.mixins.json",
+    "tsautocraft.fabric.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.19.0",
     "fabric-api": "*",
-    "minecraft": ">=26.3 <26.4",
+    "minecraft": "${minecraft}",
     "java": ">=25",
     "toms_storage": ">=2.12.2"
   },

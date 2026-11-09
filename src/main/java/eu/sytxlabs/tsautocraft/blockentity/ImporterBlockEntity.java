@@ -1,11 +1,11 @@
 package eu.sytxlabs.tsautocraft.blockentity;
 
-import net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage;
-import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
-import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
-import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
-import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
-import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
+import eu.sytxlabs.tsautocraft.transfer.FluidStorage;
+import eu.sytxlabs.tsautocraft.transfer.FluidVariant;
+import eu.sytxlabs.tsautocraft.transfer.ItemVariant;
+import eu.sytxlabs.tsautocraft.transfer.Storage;
+import eu.sytxlabs.tsautocraft.transfer.StorageView;
+import eu.sytxlabs.tsautocraft.transfer.Transaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;

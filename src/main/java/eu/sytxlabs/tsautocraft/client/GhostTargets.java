@@ -39,7 +39,8 @@ public final class GhostTargets {
 		Player player = Minecraft.getInstance().player;
 		if (player == null) return out;
 		for (Slot slot : gui.getMenu().slots) {
-			int x = gui.getLeftPos() + slot.x, y = gui.getTopPos() + slot.y;
+			var pos = (eu.sytxlabs.tsautocraft.mixin.client.AbstractContainerScreenAccessor) gui;
+			int x = pos.tsac$leftPos() + slot.x, y = pos.tsac$topPos() + slot.y;
 			if (gui.getMenu() instanceof PatternTerminalMenu menu) {
 				if (!(slot instanceof GhostSlot g) || (g.output && menu.outputsLocked())) continue;
 				int index = slot.index;

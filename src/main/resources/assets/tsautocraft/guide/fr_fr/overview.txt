@@ -1,0 +1,15 @@
+Aperçu
+
+Ce mod ajoute un autocrafting à la AE2 à Tom's Simple Storage. Vous apprenez des recettes au réseau avec des modèles, et il fabrique ce que vous demandez - y compris toutes les étapes intermédiaires.
+
+Blocs :
+- Pattern Terminal : terminal de stockage qui encode des modèles.
+- Pattern Provider : contient des modèles et remplit les fabricateurs et les machines.
+- Autocrafting Terminal : exécute et liste les tâches de fabrication.
+- Pattern Access Terminal : tous les modèles du réseau dans une seule interface.
+- Requester / Mainteneur de stock : maintiennent des items en stock.
+- Crafting Emitter : signal de redstone selon la quantité d'un item ou les besoins des tâches.
+- Exporter / Importer : déplacent des items entre le réseau et des inventaires.
+- Upgrades : capacité, vitesse, pile, fabrication, redstone.
+
+Tous les blocs doivent être reliés au même réseau d'Inventory Cables de Tom qu'un Inventory Connector. Tournez la page ou utilisez le sommaire.

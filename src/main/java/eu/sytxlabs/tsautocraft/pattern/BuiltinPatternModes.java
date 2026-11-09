@@ -5,13 +5,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage;
-import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
-import net.fabricmc.fabric.api.transfer.v1.item.ItemStorage;
-import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
-import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
-import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
-import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
+import eu.sytxlabs.tsautocraft.transfer.FluidStorage;
+import eu.sytxlabs.tsautocraft.transfer.FluidVariant;
+import eu.sytxlabs.tsautocraft.transfer.ItemStorage;
+import eu.sytxlabs.tsautocraft.transfer.ItemVariant;
+import eu.sytxlabs.tsautocraft.transfer.Storage;
+import eu.sytxlabs.tsautocraft.transfer.StorageView;
+import eu.sytxlabs.tsautocraft.transfer.Transaction;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
@@ -412,6 +412,8 @@ public final class BuiltinPatternModes {
 		Storage<ItemVariant> items = StorageUtil.facingStorage(ctx.level(), ctx.providerPos(), ctx.facing());
 		// No tank (e.g. a hopper): the filled containers go in as items
 		if (anyFluid && tank == null) return dispatchInsert(ctx, p);
+		// Only a tank (e.g. a cauldron under dripstone): empty containers are filled from it right here
+		if (!anyFluid && tank != null && items == null) return dispatchFill(ctx, p, in, tank);
 		if (anyItem && items == null) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
 		if (ctx.blocking() && (anyItem && containsAnyInput(items, p) || anyFluid && FluidUtil.containsAny(tank, FluidUtil.fluidsOf(in)))) {
 			return PatternMode.Outcome.fail(DispatchResult.BUSY);
@@ -439,6 +441,73 @@ public final class BuiltinPatternModes {
 			crafts++;
 		}
 		return crafts > 0 ? PatternMode.Outcome.ok(crafts) : PatternMode.Outcome.fail(fail);
+	}
+
+	/**
+	 * Fluid pattern on a target with a tank and no item storage, e.g. empty bucket -> lava bucket at a cauldron: every input
+	 * must be an empty container that one of the outputs holds filled. The provider fills them from the tank (all or
+	 * nothing, not enough fluid yet = busy) and hands them back as results.
+	 */
+	private static PatternMode.Outcome dispatchFill(PatternMode.DispatchContext ctx, PatternData p, List<ItemStack> in, Storage<FluidVariant> tank) {
+		List<ItemStack> filledAs = new ArrayList<>(); // per input: the output it becomes
+		List<FluidUtil.Content> contents = new ArrayList<>();
+		for (ItemStack st : in) {
+			ItemStack as = null;
+			FluidUtil.Content content = null;
+			for (PatternData.Entry e : p.outputs()) {
+				if (e.isEmpty()) continue;
+				FluidUtil.Content c = FluidUtil.content(e.item().copyWithCount(1));
+				if (c != null && ItemStack.isSameItemSameComponents(c.empty(), st)) {
+					as = e.item().copyWithCount(1);
+					content = c;
+					break;
+				}
+			}
+			if (as == null) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+			filledAs.add(as);
+			contents.add(content);
+		}
+		if (in.isEmpty()) return PatternMode.Outcome.fail(DispatchResult.NO_TARGET);
+
+		DispatchResult fail = DispatchResult.OK;
+		int crafts = 0;
+		for (int set = 0; set < ctx.maxCrafts(); set++) {
+			if (fillSet(in, filledAs, contents, tank, false) == null) {
+				fail = DispatchResult.BUSY; // not enough fluid yet
+				break;
+			}
+			List<ItemStack> got = ctx.pull(in);
+			if (got == null) {
+				fail = DispatchResult.MISSING;
+				break;
+			}
+			List<ItemStack> filled = fillSet(got, filledAs, contents, tank, true);
+			if (filled == null) {
+				ctx.undoPull(got);
+				fail = DispatchResult.BUSY;
+				break;
+			}
+			filled.forEach(ctx::result);
+			crafts++;
+		}
+		return crafts > 0 ? PatternMode.Outcome.ok(crafts) : PatternMode.Outcome.fail(fail);
+	}
+
+	/** Fills every container of {@code stacks} from {@code tank} in one transaction; the filled ones, or null (nothing changed). */
+	private static List<ItemStack> fillSet(List<ItemStack> stacks, List<ItemStack> filledAs, List<FluidUtil.Content> contents, Storage<FluidVariant> tank, boolean commit) {
+		List<ItemStack> filled = new ArrayList<>();
+		try (Transaction t = Transaction.openOuter()) {
+			for (int i = 0; i < stacks.size(); i++) {
+				ItemStack st = stacks.get(i);
+				for (int n = 0; n < st.getCount(); n++) {
+					ItemStack f = FluidUtil.fill(st.copyWithCount(1), contents.get(i).fluid(), filledAs.get(i), tank, t);
+					if (f == null) return null;
+					filled.add(f);
+				}
+			}
+			if (commit) t.commit();
+		}
+		return filled;
 	}
 
 	/**

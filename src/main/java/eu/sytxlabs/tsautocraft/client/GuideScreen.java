@@ -1,11 +1,15 @@
 package eu.sytxlabs.tsautocraft.client;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -21,13 +25,14 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ItemLike;
 
 import eu.sytxlabs.tsautocraft.ModContent;
+import eu.sytxlabs.tsautocraft.TsAutocraft;
 
 /**
- * Client-only "Autocrafting Guide" (opened by the guide book item). Each page is two translation keys,
- * {@code guide.tsautocraft.<id>.title} and {@code guide.tsautocraft.<id>.text} ("\n" = new line), plus optional icons
- * and an optional diagram (drawn above the text of its first sheet).
+ * Client-only "Autocrafting Guide" (opened by the guide book item). Each page is one text file per language,
+ * {@code assets/tsautocraft/guide/<lang>/<id>.txt} (first line = title, the rest = text; missing language = en_us, so
+ * resource packs can add translations), plus optional icons and an optional diagram (drawn above the text of its first sheet).
  * Long texts are split into several sheets automatically; sheet 0 is the table of contents.
- * To add a page: add it to {@link #PAGES} and add both keys to en_us.json and de_de.json.
+ * To add a page: add it to {@link #PAGES} and add its file to every language folder.
  * <p>
  * Diagram: one string per row, cells separated by spaces. A cell is an item id ({@code mc:} = minecraft, {@code ts:} =
  * Tom's Storage, {@code ac:} = this mod, or a full id), an arrow ({@code > < ^ v}), a cable piece ({@code - |}) or {@code .} (empty).
@@ -50,14 +55,28 @@ public class GuideScreen extends Screen {
 		int diagramHeight() {
 			return diagram.isEmpty() ? 0 : diagram.size() * CELL + 8;
 		}
+	}
 
-		Component title() {
-			return Component.translatable("guide.tsautocraft." + id + ".title");
-		}
+	/** Title and text of one page in the selected language. */
+	private record Content(Component title, Component text) {}
 
-		Component text() {
-			return Component.translatable("guide.tsautocraft." + id + ".text");
+	/** Reads {@code guide/<lang>/<id>.txt} (selected language, else en_us); first line = title, the rest = text. */
+	private static Content load(String id) {
+		Minecraft mc = Minecraft.getInstance();
+		String lang = mc.getLanguageManager().getSelected();
+		for (String l : lang.equals(DEFAULT_LANG) ? List.of(DEFAULT_LANG) : List.of(lang, DEFAULT_LANG)) {
+			var res = mc.getResourceManager().getResource(TsAutocraft.id("guide/" + l + "/" + id + ".txt"));
+			if (res.isEmpty()) continue;
+			try (BufferedReader r = res.get().openAsReader()) {
+				String title = r.readLine();
+				if (title == null) continue;
+				String text = r.lines().collect(Collectors.joining("\n")).strip();
+				return new Content(Component.literal(title.replace("﻿", "").strip()), Component.literal(text));
+			} catch (IOException e) {
+				TsAutocraft.LOGGER.warn("Could not read guide page {} ({})", id, l, e);
+			}
 		}
+		return new Content(Component.literal(id), Component.empty());
 	}
 
 	@SafeVarargs
@@ -112,6 +131,9 @@ public class GuideScreen extends Screen {
 	/** One screen of text: the page it belongs to and its lines; page -1 = table of contents. */
 	private record Sheet(int page, List<FormattedCharSequence> lines, int part, int parts) {}
 
+	private static final String DEFAULT_LANG = "en_us";
+
+	private final List<Content> contents = new ArrayList<>();
 	private final List<Sheet> sheets = new ArrayList<>();
 	private final int[] firstSheet = new int[PAGES.size()];
 	private int current;
@@ -136,12 +158,14 @@ public class GuideScreen extends Screen {
 	/** Splits every page into sheets that fit the text area (depends on the font, so done in init). */
 	private void buildSheets() {
 		sheets.clear();
+		contents.clear();
+		for (Page p : PAGES) contents.add(load(p.id()));
 		int tocRows = (TEXT_BOTTOM - TEXT_Y) / TOC_ROW_H;
 		int tocSheets = Math.max(1, (PAGES.size() + 2 * tocRows - 1) / (2 * tocRows));
 		for (int i = 0; i < tocSheets; i++) sheets.add(new Sheet(-1, List.of(), i, tocSheets));
 		int perSheet = (TEXT_BOTTOM - TEXT_Y) / font.lineHeight;
 		for (int p = 0; p < PAGES.size(); p++) {
-			List<FormattedCharSequence> lines = font.split(PAGES.get(p).text(), TEXT_W);
+			List<FormattedCharSequence> lines = font.split(contents.get(p).text(), TEXT_W);
 			int first = Math.max(1, perSheet - (PAGES.get(p).diagramHeight() + font.lineHeight - 1) / font.lineHeight); // the diagram takes room on the first sheet
 			int parts = 1 + Math.max(0, (lines.size() - first + perSheet - 1) / perSheet);
 			firstSheet[p] = sheets.size();
@@ -236,12 +260,13 @@ public class GuideScreen extends Screen {
 				int idx = s.part() * 2 * rows + i;
 				if (idx >= PAGES.size()) break;
 				int x = left + TEXT_X + (i / rows) * TOC_COL_W, y = top + TEXT_Y + (i % rows) * TOC_ROW_H;
-				String label = (idx + 1) + ". " + PAGES.get(idx).title().getString();
+				String label = Component.translatable("guide.tsautocraft.toc_entry", idx + 1, contents.get(idx).title()).getString();
 				g.text(font, font.plainSubstrByWidth(label, TOC_COL_W - 4), x, y + 2, idx == hover ? LINK_HOVER : LINK_COLOR, false);
 			}
 		} else {
 			Page p = PAGES.get(s.page());
-			Component title = s.parts() > 1 ? Component.translatable("guide.tsautocraft.part", p.title(), s.part() + 1, s.parts()) : p.title();
+			Component pageTitle = contents.get(s.page()).title();
+			Component title = s.parts() > 1 ? Component.translatable("guide.tsautocraft.part", pageTitle, s.part() + 1, s.parts()) : pageTitle;
 			int iconX = left + W - 8 - 17 * p.icons().size();
 			g.text(font, font.plainSubstrByWidth(title.getString(), iconX - left - 12), left + 8, top + 9, TITLE_COLOR, false);
 			for (int i = 0; i < p.icons().size(); i++) {

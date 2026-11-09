@@ -2,8 +2,7 @@ package eu.sytxlabs.tsautocraft.api;
 
 import java.util.List;
 
-import net.fabricmc.fabric.api.event.Event;
-import net.fabricmc.fabric.api.event.EventFactory;
+
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
@@ -19,22 +18,22 @@ public final class CraftingEvents {
 	private CraftingEvents() {}
 
 	/** A request was planned (preview, terminal request, Requester, Exporter). {@code ok} = nothing is missing. */
-	public static final Event<PlanCreated> PLAN_CREATED = EventFactory.createArrayBacked(PlanCreated.class, ls -> (level, target, amount, ok, materials) -> {
+	public static final Event<PlanCreated> PLAN_CREATED = Event.createArrayBacked(PlanCreated.class, ls -> (level, target, amount, ok, materials) -> {
 		for (PlanCreated l : ls) l.onPlan(level, target, amount, ok, materials);
 	});
 
 	/** A planned job was accepted by its owner and starts running. {@link CraftingJob#ownerPos()} is set. */
-	public static final Event<JobStarted> JOB_STARTED = EventFactory.createArrayBacked(JobStarted.class, ls -> (job, owner) -> {
+	public static final Event<JobStarted> JOB_STARTED = Event.createArrayBacked(JobStarted.class, ls -> (job, owner) -> {
 		for (JobStarted l : ls) l.onStarted(job, owner);
 	});
 
 	/** A provider started {@code crafts} crafts of a step. */
-	public static final Event<StepDispatched> STEP_DISPATCHED = EventFactory.createArrayBacked(StepDispatched.class, ls -> (job, pattern, crafts, provider) -> {
+	public static final Event<StepDispatched> STEP_DISPATCHED = Event.createArrayBacked(StepDispatched.class, ls -> (job, pattern, crafts, provider) -> {
 		for (StepDispatched l : ls) l.onDispatch(job, pattern, crafts, provider);
 	});
 
 	/** A job ended: all results arrived ({@code cancelled} false) or it was cancelled. */
-	public static final Event<JobFinished> JOB_FINISHED = EventFactory.createArrayBacked(JobFinished.class, ls -> (job, cancelled) -> {
+	public static final Event<JobFinished> JOB_FINISHED = Event.createArrayBacked(JobFinished.class, ls -> (job, cancelled) -> {
 		for (JobFinished l : ls) l.onFinished(job, cancelled);
 	});
 

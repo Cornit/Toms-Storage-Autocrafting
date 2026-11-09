@@ -1,15 +1,34 @@
 # Tom's Storage Autocrafting (tsautocraft)
 
-Fabric **26.3** addon for Tom's Simple Storage (`toms_storage` 2.12.2) adding AE2-style autocrafting.
+Fabric + NeoForge **26.3** addon for Tom's Simple Storage (`toms_storage` 2.12.2) adding AE2-style autocrafting.
 Package `eu.sytxlabs.tsautocraft`, mod id `tsautocraft`. Code, comments and docs in English; every visible string is a translation key
-(`src/main/resources/assets/tsautocraft/lang/en_us.json` + `de_de.json`, keys must stay in sync).
+(`src/main/resources/assets/tsautocraft/lang/en_us.json` + `de_de.json`, `fr_fr.json`, `es_es.json`, keys must stay in sync;
+guide pages in `assets/tsautocraft/guide/<lang>/`).
 The user (Shaun) talks German; reply in German.
 
 ## Build / run
 
-- JDK 25, Gradle 9.4.1 wrapper, Loom 1.16 (26.x is unobfuscated: plain `implementation`, no mappings).
-- `gradlew build`, `gradlew runClient`, `gradlew plannerTest` (Minecraft-free planner self test, must print "All planner tests passed").
-- Runtime log: `run/logs/latest.log`.
+- JDK 25, Gradle 9.9.0 wrapper, Stonecutter 0.10 (one source tree, nodes `versions/<mc>-<loader>`: `26.3-fabric`,
+  `26.3-neoforge`), Loom 1.16 via `dev.kikugie.loom-back-compat` (`build.fabric.gradle.kts`), ModDevGradle
+  (`build.neoforge.gradle.kts`). Versions per MC version/loader in `stonecutter.properties.toml` (`deps.*`).
+- `gradlew build` (all nodes), `gradlew :26.3-fabric:runClient` / `:26.3-neoforge:runClient`, `gradlew :26.3-fabric:plannerTest`
+  (Minecraft-free planner self test, must print "All planner tests passed"). Jars: `versions/<node>/build/libs/tsautocraft-<loader>-<ver>+<mc>.jar`; `gradlew buildAndCollect` copies all of them to `build/libs/<mod.version>/`.
+- GitHub Actions: `.github/workflows/build.yml` (push/PR: buildAndCollect + plannerTest, jars as artifact), `release.yml` (tag `v<mod.version>`: GitHub release with the jars, notes = that version's CHANGELOG section).
+- Runtime log: `run/logs/latest.log` (Fabric), `run-neoforge/logs/latest.log` (NeoForge).
+- Loader split: shared code in `src/main`; `src/fabric/{java,resources}` and `src/neoforge/{java,resources}` hold classes with the
+  SAME fully qualified names per loader (only one folder is compiled per node): `platform/Platform` (config dir, mod loaded,
+  creative tab builder), `transfer/{Transaction,ItemVariant,FluidVariant,ItemStorage,FluidStorage}` (+ `FabricStorage`/`NeoStorage`),
+  `util/FluidUtil`, entry points `fabric/TsAutocraftFabric(Client)` / `neoforge/TsAutocraftNeoForge(Client)`, `fabric.mod.json` /
+  `META-INF/neoforge.mods.toml`, Fabric-only `tsautocraft.fabric.mixins.json` (REI mixin: Tom's NeoForge jar has no REI handler).
+  Shared code never imports Fabric/NeoForge APIs: storage access goes through `transfer/Storage`/`StorageView` (Fabric method
+  names; NeoForge amounts are int and fluids in mB, so only pass on amounts the loader gave you), events via `api/Event`.
+- NeoForge registration: `ModContent` registers in its static initializer, run from the first `RegisterEvent`. Tooltips via
+  `RegisterTooltipAppendersEvent`, framed models via `ModelEvent.ModifyBakingResult` + Tom's `BakedPaintedModel`, config screen
+  via `IConfigScreenFactory`, JEI/Jade/REI plugins by annotation (`@JeiPlugin`, `@WailaPlugin`, `TsAutocraftReiPluginNeoForge`).
+- Version-specific code in `src/main`: Stonecutter comments (`//? if >=26.4 {` ... `//?}`), switch the active node with the
+  Gradle task "Set active project to ..." and "Reset active project" (= `26.3-fabric`) before committing. A new MC version:
+  `match("<mc>", "fabric", "neoforge")` in `settings.gradle.kts` + its sections in `stonecutter.properties.toml`.
+- Forge: not possible, Tom's Storage has no Forge build after 1.20.1.
 
 ## Status (2026-11-02)
 
@@ -26,6 +45,9 @@ The user (Shaun) talks German; reply in German.
   pass (see Performance below), API VERSION 2 (`PatternData.derived`).
 - 0.4.1 (2026-11-08): idle backoff for Importer/Exporter (`work()` returns whether something moved, `wake()` on filter/mode/
   redstone change, config `ioIdleMaxSkip`).
+- 0.5.0 (2026-11-08, not tested in game): provider targets need item/fluid storage or a machine profile
+  (`isTarget`); Ctrl shows pattern outputs in every container slot (`mixin/client/AbstractContainerScreenMixin`);
+  `CraftRequestScreen` compact amount view (`H_INPUT`, rebuilt on preview switch), math via `util/MathExpr` (26.3 `EditBox` has no `setFilter`).
 - Next: test in game (job list buttons/tooltips, Jade, upgrades stacking, IO modes + ghost/real filters, Redstone Upgrade on
   IO and in front of a crafter, omni provider with several crafters, fluid pattern + Importer filling, brewing stand profile,
   wireless terminals, config screen with `-PwithModMenu`, framed directional emitter).
@@ -125,7 +147,9 @@ The user (Shaun) talks German; reply in German.
   JEI/REI "+" encodes 3 bottles; the Importer skips a brewing stand while slot 3 holds a reagent.
 - Fluids: Tom's has none, so they travel as filled containers. Fluid pattern mode empties containers into the target's
   `FluidStorage`, empties go back; Importer with a filled container as filter fills empty containers from the network
-  (`util/FluidUtil`).
+  (`util/FluidUtil`). Target with only a tank (cauldron) + only empty-container inputs: `dispatchFill` fills them from the
+  tank itself (not enough fluid = BUSY); results via `DispatchContext.result` -> provider `results`, pushed + `itemsArrived`
+  next tick (same tick would be before the job counts the craft in flight).
 - Item tooltips: `Item.appendHoverText` and `BlockEntity.removeComponentsFromTag` are deprecated in 26.3. Tooltips come from
   `TooltipProvider` components registered in Fabric's `ItemComponentTooltipProviderRegistry` (`PatternData`, default
   component `ItemDescription` on block items/upgrades, key `tooltip.tsautocraft.<id>`).
@@ -148,8 +172,9 @@ The user (Shaun) talks German; reply in German.
   JEI/REI exclusion area), menu button ids `BTN_SCALE`+i -> `PatternTerminalBlockEntity.scaleAmounts(mul, div)`; disabled when
   `PatternTerminalMenu.canScale` fails (amount not whole, < 1 or > `MAX_PROCESSING_COUNT`), no clamping (keeps ratios).
 - Guide book `guide_book` (`GuideBookItem`, book + blank pattern): right click opens client-only `client/GuideScreen` via
-  `GuideBookItem.opener`. Pages = `PAGES` list (id + icons), text in `guide.tsautocraft.<id>.title/.text` (en + de); long texts
-  are split into sheets automatically, sheet 0 = table of contents. New page: add to `PAGES` + both lang keys.
+  `GuideBookItem.opener`. Pages = `PAGES` list (id + icons), text in `assets/tsautocraft/guide/<lang>/<id>.txt` (line 1 =
+  title, rest = text; selected language, fallback en_us; read in `init`); long texts
+  are split into sheets automatically, sheet 0 = table of contents. New page: add to `PAGES` + a file in every language folder.
   Pictures = `.diagram("row", ...)`: item icons (`mc:`/`ts:`/`ac:` ids), arrows `> < ^ v`, cables `- |`, `.` empty; drawn live
   above the text of the page's first sheet (no PNG screenshots).
 - `CraftRequestScreen`: failed preview gets `tsac_max` (binary search `CraftingJob.maxPossible`) -> "Craft N" button.

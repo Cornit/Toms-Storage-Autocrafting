@@ -38,6 +38,7 @@ public class NetworkLink {
 	 * Compared by identity of the underlying storage, so wrappers built anew on every lookup (double chests) are not recognized.
 	 */
 	public boolean isNetworkStorage(Level level, BlockPos pos, Object storage) {
+		if (storage instanceof eu.sytxlabs.tsautocraft.transfer.Storage<?> s) storage = s.platformHandler();
 		return storage != null && NetworkCache.of(level, pos).storages().contains(storage);
 	}
 

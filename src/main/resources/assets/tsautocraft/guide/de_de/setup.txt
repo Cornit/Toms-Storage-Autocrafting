@@ -1,0 +1,9 @@
+Minimaler Aufbau
+
+1. Baue ein Tom's-Lager: Inventory Connector neben Truhen, davon Inventory Cables.
+2. Schließe ein Autocrafting Terminal (führt die Aufträge aus) und ein Pattern Terminal an die Kabel an.
+3. Setze einen Pattern Provider ans Kabelnetz und einen Vanilla-Crafter daneben.
+4. Lass den Crafter sein Ergebnis in eine Truhe auswerfen und setze einen Importer (an den Kabeln) an diese Truhe, damit die Ergebnisse ins Lager zurückkommen.
+5. Der Crafter braucht einen Auslöser: eigene Redstone-Schaltung, ein Redstone-Upgrade im Provider, oder crafterTrigger in der Konfiguration auf direct bzw. redstone stellen.
+6. Kodiere im Pattern Terminal ein Crafting-Muster und lege es in den Provider.
+7. Das Item zeigt jetzt in jedem Terminal ein grünes +. Strg + Klick darauf, Menge eingeben, Berechnen, Starten.

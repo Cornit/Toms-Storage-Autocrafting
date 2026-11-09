@@ -1,0 +1,3 @@
+Pattern Access Terminal
+
+Affiche dans une seule interface les slots de modèles de chaque Pattern Provider du réseau de câbles. Insérez, retirez et échangez des modèles sans aller jusqu'à chaque provider. Le champ de recherche filtre par nom de provider ou par sortie de modèle ; nommez les providers avec une enclume pour les retrouver facilement. Il ne contient lui-même aucun item.

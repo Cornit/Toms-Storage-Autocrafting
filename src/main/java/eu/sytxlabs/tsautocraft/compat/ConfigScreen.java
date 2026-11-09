@@ -1,4 +1,4 @@
-package eu.sytxlabs.tsautocraft.compat.modmenu;
+package eu.sytxlabs.tsautocraft.compat;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -6,8 +6,7 @@ import java.util.Locale;
 
 import net.minecraft.network.chat.Component;
 
-import com.terraformersmc.modmenu.api.ConfigScreenFactory;
-import com.terraformersmc.modmenu.api.ModMenuApi;
+import net.minecraft.client.gui.screens.Screen;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
@@ -16,28 +15,26 @@ import eu.sytxlabs.tsautocraft.TsAutocraft;
 import eu.sytxlabs.tsautocraft.TsAutocraftConfig;
 
 /**
- * Mod Menu config screen (Cloth Config ships inside Tom's Storage). Built from the public fields of {@link TsAutocraftConfig}: labels {@code config.tsautocraft.<field>}, tooltips {@code config.tsautocraft.<field>.desc}.
+ * Config screen (Cloth Config ships inside Tom's Storage), opened from Mod Menu (Fabric) or the mod list (NeoForge). Built from the public fields of {@link TsAutocraftConfig}: labels {@code config.tsautocraft.<field>}, tooltips {@code config.tsautocraft.<field>.desc}.
  */
-public class TsAutocraftModMenu implements ModMenuApi {
+public final class ConfigScreen {
+	private ConfigScreen() {}
 
-	@Override
-	public ConfigScreenFactory<?> getModConfigScreenFactory() {
-		return parent -> {
-			TsAutocraftConfig cfg = TsAutocraftConfig.get();
-			TsAutocraftConfig def = TsAutocraftConfig.defaults();
-			ConfigBuilder builder = ConfigBuilder.create().setParentScreen(parent).setTitle(Component.translatable("config.tsautocraft.title")).setSavingRunnable(TsAutocraftConfig::save);
-			ConfigEntryBuilder eb = builder.entryBuilder();
-			for (Field f : TsAutocraftConfig.class.getFields()) {
-				if (Modifier.isStatic(f.getModifiers())) continue;
-				ConfigCategory cat = builder.getOrCreateCategory(Component.translatable("config.tsautocraft.category." + category(f.getName())));
-				try {
-					cat.addEntry(entry(eb, f, cfg, def));
-				} catch (ReflectiveOperationException e) {
-					TsAutocraft.LOGGER.error("Config field {}", f.getName(), e);
-				}
+	public static Screen build(Screen parent) {
+		TsAutocraftConfig cfg = TsAutocraftConfig.get();
+		TsAutocraftConfig def = TsAutocraftConfig.defaults();
+		ConfigBuilder builder = ConfigBuilder.create().setParentScreen(parent).setTitle(Component.translatable("config.tsautocraft.title")).setSavingRunnable(TsAutocraftConfig::save);
+		ConfigEntryBuilder eb = builder.entryBuilder();
+		for (Field f : TsAutocraftConfig.class.getFields()) {
+			if (Modifier.isStatic(f.getModifiers())) continue;
+			ConfigCategory cat = builder.getOrCreateCategory(Component.translatable("config.tsautocraft.category." + category(f.getName())));
+			try {
+				cat.addEntry(entry(eb, f, cfg, def));
+			} catch (ReflectiveOperationException e) {
+				TsAutocraft.LOGGER.error("Config field {}", f.getName(), e);
 			}
-			return builder.build();
-		};
+		}
+		return builder.build();
 	}
 
 	private static String category(String field) {

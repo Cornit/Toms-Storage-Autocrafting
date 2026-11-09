@@ -1,0 +1,8 @@
+Pedir objetos
+
+Los objetos fabricables muestran un + verde en todos los terminales de Tom de la red.
+
+- Ctrl + clic en un objeto fabricable, o clic en uno con cantidad 0, para abrir el diálogo de petición.
+- Introduce la cantidad y pulsa Calcular: obtienes una lista de materiales (del almacén, a fabricar, faltan); el botón Árbol/Lista muestra en su lugar el árbol de recetas (clic en una línea para desplegarla o plegarla).
+- Iniciar comienza el trabajo. Si falta algo, un botón ofrece la mayor cantidad que se puede fabricar ahora.
+- En el Crafting Terminal de Tom, el botón + del visor de recetas puede fabricar los ingredientes que faltan (Ctrl + clic).

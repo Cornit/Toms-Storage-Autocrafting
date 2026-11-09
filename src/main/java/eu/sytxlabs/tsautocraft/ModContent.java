@@ -4,9 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
-import net.fabricmc.fabric.api.item.v1.ItemComponentTooltipProviderRegistry;
-import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -58,6 +55,7 @@ import eu.sytxlabs.tsautocraft.menu.RequesterMenu;
 import eu.sytxlabs.tsautocraft.menu.LevelMaintainerMenu;
 import eu.sytxlabs.tsautocraft.pattern.PatternData;
 import eu.sytxlabs.tsautocraft.pattern.PatternItem;
+import eu.sytxlabs.tsautocraft.platform.Platform;
 
 public final class ModContent {
 	private static final List<Item> TAB_ITEMS = new ArrayList<>();
@@ -66,11 +64,6 @@ public final class ModContent {
 	public static final DataComponentType<PatternData> PATTERN_COMPONENT = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, TsAutocraft.id("pattern"), DataComponentType.<PatternData>builder().persistent(PatternData.CODEC).build());
 	/** Description line of our blocks and upgrades (default component, see {@link ItemDescription}). */
 	public static final DataComponentType<ItemDescription> DESCRIPTION_COMPONENT = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, TsAutocraft.id("description"), DataComponentType.<ItemDescription>builder().persistent(ItemDescription.CODEC).networkSynchronized(ItemDescription.STREAM_CODEC).build());
-
-	static {
-		ItemComponentTooltipProviderRegistry.addLast(PATTERN_COMPONENT);
-		ItemComponentTooltipProviderRegistry.addLast(DESCRIPTION_COMPONENT);
-	}
 
 	// --- Blocks ---
 	public static final ConnectorNodeBlock EXPORTER = block("exporter", p -> new ConnectorNodeBlock(p.noOcclusion(), ExporterBlockEntity::new, false));
@@ -146,7 +139,7 @@ public final class ModContent {
 	// --- Creative Tab ---
 	@SuppressWarnings("unused")
     public static final CreativeModeTab TAB = Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB, ResourceKey.create(Registries.CREATIVE_MODE_TAB, TsAutocraft.id("tab")),
-			FabricCreativeModeTab.builder().title(Component.translatable("itemGroup.tsautocraft.tab")).icon(() -> new ItemStack(ModContent.PATTERN_PROVIDER))
+			Platform.creativeTab().title(Component.translatable("itemGroup.tsautocraft.tab")).icon(() -> new ItemStack(ModContent.PATTERN_PROVIDER))
 			.displayItems((params, out) -> TAB_ITEMS.forEach(out::accept)).build());
 
 	private ModContent() {}
@@ -181,8 +174,8 @@ public final class ModContent {
 		return item;
 	}
 
-	private static <T extends BlockEntity> BlockEntityType<T> blockEntity(String name, FabricBlockEntityTypeBuilder.Factory<T> factory, Block... blocks) {
-		return Registry.register(BuiltInRegistries.BLOCK_ENTITY_TYPE, TsAutocraft.id(name), FabricBlockEntityTypeBuilder.create(factory, blocks).build());
+	private static <T extends BlockEntity> BlockEntityType<T> blockEntity(String name, BlockEntityType.BlockEntitySupplier<T> factory, Block... blocks) {
+		return Registry.register(BuiltInRegistries.BLOCK_ENTITY_TYPE, TsAutocraft.id(name), new BlockEntityType<>(factory, java.util.Set.of(blocks)));
 	}
 
 	private static <M extends AbstractContainerMenu> MenuType<M> menu(String name, MenuSupplier<M> supplier) {

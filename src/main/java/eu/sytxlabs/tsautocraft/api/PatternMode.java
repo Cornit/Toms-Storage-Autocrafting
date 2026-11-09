@@ -144,6 +144,14 @@ public interface PatternMode {
 			got.forEach(this::giveBack);
 		}
 
+		/**
+		 * A result the delivery made right away (e.g. an empty container filled from the machine's tank). It goes into
+		 * the network on the next tick and counts as an arrived result for the jobs, like an Importer arrival.
+		 */
+		default void result(ItemStack stack) {
+			giveBack(stack);
+		}
+
 		/** The provider block entity (the built-in modes use its internals). */
 		Object provider();
 

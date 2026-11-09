@@ -1,0 +1,3 @@
+Pattern Access Terminal
+
+Zeigt die Musterfelder aller Pattern Provider im Kabelnetz in einer GUI. Muster einlegen, herausnehmen und tauschen, ohne zu jedem Provider zu laufen. Das Suchfeld filtert nach Providername oder Musterausgabe; benenne Provider im Amboss, um sie leicht zu finden. Es hält selbst keine Items.

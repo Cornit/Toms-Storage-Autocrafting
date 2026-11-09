@@ -4,11 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import net.fabricmc.fabric.api.transfer.v1.item.ItemStorage;
-import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
-import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
-import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
-import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext;
+import eu.sytxlabs.tsautocraft.transfer.ItemStorage;
+import eu.sytxlabs.tsautocraft.transfer.ItemVariant;
+import eu.sytxlabs.tsautocraft.transfer.Storage;
+import eu.sytxlabs.tsautocraft.transfer.Transaction;
+import eu.sytxlabs.tsautocraft.transfer.TransactionContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemStack;

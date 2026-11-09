@@ -1,0 +1,11 @@
+Pattern Terminal
+
+A Tom's storage terminal (search, sorting, tall mode) with an encoding area instead of a crafting grid.
+
+- Mode button (left): crafting, processing, smelting, fluid, brewing (and modes of other mods).
+- Grid: ghost items, nothing is used up. In crafting mode one item per slot and the result is computed. In free modes left click with a stack sets its size, right click adds/removes one.
+- Outputs: set by hand in free modes.
+- x2, /2, x10, /10 (right of the encoding area, free modes only): scale all amounts at once. Greyed out when an amount would exceed 999 or stop being a whole number.
+- S: substitutes on/off (crafting only, any item that gives the same result may be used).
+- X: clear grid, L: load the pattern in the blank slot back into the grid.
+- Put Blank Patterns into the top slot and press Encode. A named pattern keeps its name when re-encoded.

@@ -1,0 +1,60 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+issueTrackerURL = "https://github.com/SytxLabs/Toms-Storage-Autocrafting/issues"
+
+[[mods]]
+modId = "tsautocraft"
+version = "${version}"
+displayName = "Tom's Storage Autocrafting"
+displayURL = "https://modrinth.com/mod/toms-storage-autocrafting"
+iconFile = "assets/tsautocraft/icon.png"
+authors = "SytxLabs"
+description = '''
+Unofficial AE2-style autocrafting for Tom's Simple Storage: Pattern Terminal, Pattern Provider, Autocrafting Terminal, Requester, Exporter, Importer and Crafting Emitter. Request crafts right in Tom's terminals, with job priorities, fluids via containers, upgrades, Jade and an API for other mods.
+'''
+
+[[mixins]]
+config = "tsautocraft.mixins.json"
+
+[[dependencies.tsautocraft]]
+modId = "neoforge"
+type = "required"
+versionRange = "[26.3.0,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.tsautocraft]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.tsautocraft]]
+modId = "toms_storage"
+type = "required"
+versionRange = "[2.12.2,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.tsautocraft]]
+modId = "jei"
+type = "optional"
+versionRange = "*"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.tsautocraft]]
+modId = "cloth_config"
+type = "optional"
+versionRange = "*"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.tsautocraft]]
+modId = "jade"
+type = "optional"
+versionRange = "*"
+ordering = "NONE"
+side = "BOTH"

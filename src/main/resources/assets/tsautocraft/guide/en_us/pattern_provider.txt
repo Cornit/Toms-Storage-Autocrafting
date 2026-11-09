@@ -1,0 +1,12 @@
+Pattern Provider
+
+Holds patterns (9 slots, +9 per Capacity Upgrade up to 36) and delivers the inputs to machines when a job needs them.
+
+- Full block: supplies every adjacent crafter or machine, one after the other. A redstone pulse only goes to the machine that was just filled.
+- Connector (and framed connector): supplies only the block it faces.
+- Crafting patterns fill a vanilla Crafter in pattern order. Processing patterns insert all inputs at once or nothing.
+- Blocking mode: only push again once no inputs are left in the machine.
+- Lock mode: off, until result returned (waits for the Importer), or with/without redstone signal.
+- Priority: providers with a higher priority are used first.
+- Results must come back through an Importer (or directly into storage).
+- Upgrades: Capacity, Speed, Stack, Redstone.

@@ -23,7 +23,10 @@ import eu.sytxlabs.tsautocraft.pattern.PatternEncoder;
 
 public class PatternTerminalScreen extends AbstractStorageTerminalScreen<PatternTerminalMenu> {
 	private static final Identifier GUI = TsAutocraft.id("textures/gui/pattern_terminal.png");
-	private Button modeBtn, substBtn;
+	private Button modeBtn, substBtn, clearBtn, loadBtn;
+	/** Icons of the clear and load buttons (barrier = empty the grid, pattern = load it for editing). */
+	private static final ItemStack CLEAR_ICON = new ItemStack(net.minecraft.world.item.Items.BARRIER);
+	private static ItemStack loadIcon;
 	private int shownMode;
 	private boolean shownSubst;
 	private Component message = Component.empty();
@@ -60,10 +63,10 @@ public class PatternTerminalScreen extends AbstractStorageTerminalScreen<Pattern
 		modeBtn = addRenderableWidget(Button.builder(modeLabel(), b -> click(0)).bounds(leftPos + 5, y, 18, 18).build());
 		shownMode = menu.mode;
 		modeBtn.setTooltip(modeTooltip());
-		Button clear = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.clear_short"), b -> click(3)).bounds(leftPos + 5, y + 20, 18, 16).build());
-		clear.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.clear")));
-		Button load = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.load_short"), b -> click(2)).bounds(leftPos + 5, y + 38, 18, 16).build());
-		load.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.load")));
+		clearBtn = addRenderableWidget(Button.builder(Component.empty(), b -> click(3)).bounds(leftPos + 5, y + 20, 18, 16).build());
+		clearBtn.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.clear")));
+		loadBtn = addRenderableWidget(Button.builder(Component.empty(), b -> click(2)).bounds(leftPos + 5, y + 38, 18, 16).build());
+		loadBtn.setTooltip(Tooltip.create(Component.translatable("tooltip.tsautocraft.load")));
 		addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.encode"), b -> click(1)).bounds(leftPos + 122, y + 19, 48, 16).build());
 		substBtn = addRenderableWidget(Button.builder(substLabel(), b -> click(4)).bounds(leftPos + 150, y + 1, 20, 16).build());
 		shownSubst = menu.substitutes;
@@ -157,6 +160,11 @@ public class PatternTerminalScreen extends AbstractStorageTerminalScreen<Pattern
 		updateScaleButtons();
 		super.extractRenderState(graphics, mouseX, mouseY, a);
 		if (modeBtn != null) graphics.item(menu.modeType().icon(), modeBtn.getX() + 1, modeBtn.getY() + 1);
+		if (clearBtn != null) graphics.item(CLEAR_ICON, clearBtn.getX() + 1, clearBtn.getY());
+		if (loadBtn != null) {
+			if (loadIcon == null) loadIcon = new ItemStack(eu.sytxlabs.tsautocraft.ModContent.PATTERN);
+			graphics.item(loadIcon, loadBtn.getX() + 1, loadBtn.getY());
+		}
 		extractGridLayout(graphics, mouseX, mouseY);
 	}
 

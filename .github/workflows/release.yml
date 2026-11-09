@@ -1,0 +1,43 @@
+name: Release
+
+# Push a tag like v0.5.0: builds all loaders/versions and attaches the jars (incl. the API jar) to a GitHub release.
+# The tag must match mod.version in stonecutter.properties.toml.
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build all loaders and versions
+        run: |
+          chmod +x gradlew
+          ./gradlew buildAndCollect :26.3-fabric:plannerTest --stacktrace
+
+      - name: Check tag against mod version
+        run: |
+          VERSION=$(grep -E '^mod.version' stonecutter.properties.toml | sed -E 's/.*"(.*)".*/\1/')
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match mod.version $VERSION"; exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Create release with the jars
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES=$(awk "/^# $VERSION\$/{f=1;next} /^# /{f=0} f" CHANGELOG.md)
+          gh release create "$GITHUB_REF_NAME" build/libs/$VERSION/*.jar --title "$VERSION" --notes "${NOTES:-Release $VERSION}"

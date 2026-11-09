@@ -1,0 +1,9 @@
+Montaje mínimo
+
+1. Construye un almacenamiento de Tom: Inventory Connector junto a cofres, Inventory Cables desde él.
+2. Conecta a los cables un Autocrafting Terminal (ejecuta los trabajos) y un Pattern Terminal.
+3. Coloca un Pattern Provider en la red de cables y un fabricador de vanilla a su lado.
+4. Haz que el fabricador suelte su resultado en un cofre y pon un Importer (conectado a los cables) en ese cofre, para que los resultados vuelvan al almacén.
+5. El fabricador necesita una activación: construye tu propio circuito de redstone, pon una mejora de redstone en el provider, o pon crafterTrigger en direct o redstone en la configuración.
+6. Codifica un patrón de crafting en el Pattern Terminal y ponlo en el provider.
+7. Ahora el objeto muestra un + verde en todos los terminales. Ctrl + clic en él, introduce una cantidad, Calcular, Iniciar.

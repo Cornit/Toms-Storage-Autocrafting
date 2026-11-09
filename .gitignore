@@ -38,3 +38,8 @@ hs_err_pid*
 codes
 old_stuff
 _to_delete
+
+# Stonecutter / NeoForge dev directories
+run-neoforge
+versions/*/build
+versions/*/.gradle

@@ -20,8 +20,8 @@ import eu.sytxlabs.tsautocraft.util.ItemKey;
  * {@link PlannerHooks}. It is also published as a separate jar (classifier {@code api}) to compile against.
  */
 public final class TsAutocraftApi {
-	/** Raised on incompatible API changes. */
-	public static final int VERSION = 2;
+	/** Raised on incompatible API changes (3: {@link CraftingEvents} use the loader independent {@link Event}). */
+	public static final int VERSION = 3;
 
 	private TsAutocraftApi() {}
 

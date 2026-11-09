@@ -1,0 +1,3 @@
+Requester
+
+Hält bis zu 6 Items auf einem Mindestbestand. Pro Eintrag Item und Zielmenge setzen; fällt der Bestand im Netzwerk darunter, startet automatisch ein Auftrag für die Differenz. Pro Eintrag läuft nur ein Auftrag gleichzeitig, damit nichts doppelt gecraftet wird, während Ergebnisse noch in Maschinen stecken. Rezeptanzeiger: + oder ein Item auf einen Eintrag ziehen.

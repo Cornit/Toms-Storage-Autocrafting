@@ -1,0 +1,3 @@
+Modus: Schmelzen
+
+Für Öfen, Schmelzöfen und Räucheröfen. Das erste Rasteritem ist die Eingabe; das Ergebnis kommt aus dem Ofenrezept. Um Brennstoff kümmerst du dich selbst (z. B. Trichter oder Exporter mit Kohle). Die Ergebnisse kommen über einen Importer am oder unter dem Ofen zurück.

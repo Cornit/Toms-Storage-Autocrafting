@@ -1,0 +1,5 @@
+Mainteneur de stock
+
+Comme le Requester, mais avec 12 entrées d'item, de seuil et de taille de lot : quand le stock (moins ce que d'autres tâches ont réservé) passe sous le seuil, une tâche pour la quantité du lot démarre. Une seule tâche par entrée à la fois.
+
+Upgrades : vitesse (intervalle de vérification plus court), redstone (maintenir seulement avec ou sans signal, ou basculer à chaque impulsion ; les tâches en cours continuent toujours).

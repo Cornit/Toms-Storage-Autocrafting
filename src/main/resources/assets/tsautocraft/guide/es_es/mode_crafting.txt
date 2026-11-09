@@ -1,0 +1,3 @@
+Modo: Crafting
+
+Para el fabricador de vanilla. Un objeto por ranura de la cuadrícula; el resultado se calcula a partir de la receta. El provider coloca los objetos en las ranuras 0-8 del fabricador en el orden del patrón (desplazados a ranuras activas si alguna está desactivada, ver config). Sin modo bloqueo, se apilan encima más juegos de la misma receta. Con los sustitutos activados, se puede usar en cada ranura cualquier objeto que dé el mismo resultado (p. ej. otros tablones). Cómo se activa el fabricador depende de la configuración (crafterTrigger).

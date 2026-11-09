@@ -1,0 +1,10 @@
+Configuration
+
+File config/tsautocraft.json, or the Mod Menu config screen.
+
+- crafterTrigger: external (your own redstone circuit, default), direct (block tick) or redstone (2-tick pulse from the provider).
+- enableDisabledCrafterSlots: use disabled crafter slots instead of shifting the recipe.
+- Crafter timings, provider lock timeout, return inputs on cancel.
+- Jobs per Autocrafting Terminal and per Capacity Upgrade, largest request, job timeouts, history size.
+- Requester, Level Maintainer and Importer/Exporter intervals and amounts.
+Machines can be configured by datapack: data/<namespace>/tsautocraft/machines/*.json.

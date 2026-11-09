@@ -1,0 +1,3 @@
+Pattern Access Terminal
+
+Muestra las ranuras de patrón de todos los Pattern Provider de la red de cables en una sola interfaz. Coloca, saca e intercambia patrones sin ir hasta cada provider. El cuadro de búsqueda filtra por nombre del provider o por resultado del patrón; ponles nombre a los providers en un yunque para encontrarlos fácilmente. No guarda objetos por sí mismo.

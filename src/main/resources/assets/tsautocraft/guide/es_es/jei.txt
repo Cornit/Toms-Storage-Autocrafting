@@ -1,0 +1,8 @@
+JEI y REI
+
+- Pattern Terminal: el botón + llena la cuadrícula con la receta (el modo se elige según el tipo de receta), o arrastra objetos a las ranuras de la cuadrícula.
+- Pattern Provider: + codifica la receta directamente en una ranura libre, usando un patrón vacío de tu inventario.
+- Requester: + pone el resultado de la receta en una entrada; arrastra objetos a las entradas.
+- Exporter/Importer: arrastra objetos a las ranuras de filtro.
+- Crafting Terminal de Tom: + con Ctrl + clic fabrica los ingredientes que faltan.
+REI funciona como JEI (menos probado).

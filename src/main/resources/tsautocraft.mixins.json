@@ -7,9 +7,10 @@
     "StorageTerminalMenuMixin"
   ],
   "client": [
+    "client.AbstractContainerScreenAccessor",
+    "client.AbstractContainerScreenMixin",
     "client.AbstractStorageTerminalScreenMixin",
-    "client.CraftingTerminalTransferHandlerMixin",
-    "client.ReiTransferHandlerMixin"
+    "client.CraftingTerminalTransferHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

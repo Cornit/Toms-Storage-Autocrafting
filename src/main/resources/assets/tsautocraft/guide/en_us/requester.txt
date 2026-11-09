@@ -1,0 +1,3 @@
+Requester
+
+Keeps up to 6 items at a minimum stock. Set an item and a target amount per entry; when the stock in the network drops below it, a job for the difference starts automatically. Only one job per entry runs at a time, so nothing is crafted twice while results are still inside machines. Recipe viewer: + or drag an item onto an entry.

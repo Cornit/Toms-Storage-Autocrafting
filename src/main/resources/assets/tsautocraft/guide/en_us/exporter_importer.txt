@@ -1,0 +1,7 @@
+Exporter and Importer
+
+Exporter: pushes filtered items from the network into the inventory it faces (without filters nothing happens). Items reserved by jobs are never exported. With a Crafting Upgrade, missing filter items are crafted.
+
+Importer: pulls items from the inventory it faces into the network; no filter = everything. It also reports results of jobs, so put it on the output chest behind crafters and machines.
+
+Filters: plain items are ghost items; Tom's filter items are real items. Modes: round robin, priority, random, and blacklist (Importer). Upgrades: Speed, Stack, Redstone. Framed variants can be painted with Tom's Paint Kit.

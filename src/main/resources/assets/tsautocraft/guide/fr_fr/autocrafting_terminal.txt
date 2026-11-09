@@ -1,0 +1,10 @@
+Autocrafting Terminal
+
+Exécute les tâches de fabrication du réseau ; il en faut au moins un. Il liste tous les items fabricables et toutes les tâches du réseau.
+
+- Choisissez un item, entrez une quantité et demandez-le.
+- Chaque tâche affiche sa progression ; survolez-la pour voir les étapes et pourquoi l'une attend (items manquants, provider occupé).
+- Boutons par tâche : priorité (haute/normale/basse), pause, annuler. Quand une tâche est annulée, les ingrédients encore dans les machines peuvent être rendus (config returnInputsOnCancel).
+- Onglets En cours/Historique : l'historique liste les dernières tâches terminées ou annulées (✕ le vide), les tâches en cours affichent le temps restant estimé dans leur infobulle.
+- Les tâches réservent leurs matériaux, deux tâches n'utilisent donc jamais les mêmes items.
+- Les Upgrades de capacité permettent plus de tâches en parallèle.

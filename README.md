@@ -1,6 +1,6 @@
-# Tom's Storage Autocrafting (Fabric 26.3)
+# Tom's Storage Autocrafting (Fabric / NeoForge 26.3)
 
-Unofficial addon for [Tom's Simple Storage](https://modrinth.com/mod/toms-storage) (26.3-2.12.2, Fabric) that adds AE2-style autocrafting.
+Unofficial addon for [Tom's Simple Storage](https://modrinth.com/mod/toms-storage) (26.3-2.12.2, Fabric and NeoForge) that adds AE2-style autocrafting.
 All text is translatable (`assets/tsautocraft/lang/*.json`); English and German are included.
 
 Download: [Modrinth](https://modrinth.com/mod/toms-storage-autocrafting) · [CurseForge](https://www.curseforge.com/minecraft/mc-mods/toms-storage-autocrafting)
@@ -161,11 +161,16 @@ Everything in `eu.sytxlabs.tsautocraft.api` is public API (`TsAutocraftApi.VERSI
 Requires **JDK 25**.
 
 ```
-gradlew build          # -> build/libs/tsautocraft-fabric-26.3-<version>.jar (+ -api.jar, -sources.jar)
-gradlew runClient      # test client with Tom's Storage, Fabric API, JEI and Jade
-                       # (-PnoJei, -PnoJade leave them out, -PwithModMenu adds Mod Menu)
-gradlew plannerTest    # tests the crafting planner without Minecraft
+gradlew build                          # all loaders -> versions/<mc>-<loader>/build/libs/tsautocraft-<loader>-<version>+<mc>.jar
+gradlew buildAndCollect                # same, all jars copied to build/libs/<version>/
+gradlew :26.3-fabric:runClient         # Fabric test client with Tom's Storage, Fabric API, JEI and Jade
+gradlew :26.3-neoforge:runClient       # NeoForge test client (run directory run-neoforge)
+                                       # (-PnoJei, -PnoJade leave them out, -PwithModMenu adds Mod Menu on Fabric)
+gradlew :26.3-fabric:plannerTest       # tests the crafting planner without Minecraft
 ```
+
+One source tree for all loaders and Minecraft versions ([Stonecutter](https://stonecutter.kikugie.dev)): shared code in
+`src/main`, loader specific classes in `src/fabric` and `src/neoforge`, versions in `stonecutter.properties.toml`.
 
 In IntelliJ: open the folder, import the Gradle project, set the project SDK to 25.
 

@@ -11,7 +11,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
 import com.google.gson.annotations.SerializedName;
 
-import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * {@code config/tsautocraft.json}, read at startup and written by the config screen (Mod Menu); the values are read live,
@@ -134,7 +133,7 @@ public final class TsAutocraftConfig {
 	}
 
 	private static Path file() {
-		return FabricLoader.getInstance().getConfigDir().resolve(TsAutocraft.MODID + ".json");
+		return eu.sytxlabs.tsautocraft.platform.Platform.configDir().resolve(TsAutocraft.MODID + ".json");
 	}
 
 	private static void write(Path file) {

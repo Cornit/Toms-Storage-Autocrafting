@@ -1,0 +1,5 @@
+Modo: Procesado
+
+Para cualquier máquina con inventario. Cantidades libres para hasta 9 entradas y 3 salidas, fijadas a mano (usa x2, /2, x10, /10 para escalarlas). El provider inserta todas las entradas a la vez o nada. Las salidas deben volver a través de un Importer. Los perfiles de máquina (datapack) pueden definir qué lados reciben los objetos (también lados distintos para entradas distintas), un pulso de redstone, una pausa entre entregas y el bloqueo por máquina.
+
+Ejemplo (imagen): frascos de agua. Un Pattern Provider Connector llena un dispensador que apunta a una fuente de agua, patrón 1 frasco de cristal -> 1 frasco de agua. El perfil integrado del dispensador le da un pulso de redstone tras cada entrega, así que llena el frasco; un Importer con un frasco de agua como filtro lo saca.

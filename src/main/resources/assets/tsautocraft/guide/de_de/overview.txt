@@ -1,0 +1,15 @@
+Überblick
+
+Diese Mod erweitert Tom's Simple Storage um Autocrafting wie in AE2. Du bringst dem Netzwerk Rezepte über Muster bei, und es craftet, was du anforderst - inklusive aller Zwischenschritte.
+
+Blöcke:
+- Pattern Terminal: Lagerterminal, das Muster kodiert.
+- Pattern Provider: hält Muster und befüllt Crafter und Maschinen.
+- Autocrafting Terminal: führt Crafting-Aufträge aus und listet sie.
+- Pattern Access Terminal: alle Muster des Netzwerks in einer GUI.
+- Requester / Bestandswächter: halten Items vorrätig.
+- Crafting-Emitter: Redstone-Signal nach Item-Menge oder Auftragsbedarf.
+- Exporter / Importer: bewegen Items zwischen Netzwerk und Inventaren.
+- Upgrades: Kapazität, Geschwindigkeit, Stapel, Crafting, Redstone.
+
+Alle Blöcke müssen am selben Inventory-Cable-Netzwerk wie ein Inventory Connector hängen. Blättere um oder nutze das Inhaltsverzeichnis.

@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -25,10 +24,6 @@ public final class JobScheduler {
 
 	private JobScheduler() {}
 
-	public static void init() {
-		ServerTickEvents.END_LEVEL_TICK.register(JobScheduler::run);
-	}
-
 	public static void submit(JobOwner owner) {
 		if (!(owner instanceof BlockEntity be) || be.getLevel() == null || be.getLevel().isClientSide()) return;
 		PENDING.computeIfAbsent(be.getLevel(), l -> new LinkedHashSet<>()).add(owner);
@@ -42,7 +37,8 @@ public final class JobScheduler {
 
 	private record Entry(JobOwner owner, CraftingJob job) {}
 
-	private static void run(ServerLevel level) {
+	/** End of a server level tick (hooked up by the loader entry point). */
+	public static void tick(ServerLevel level) {
 		Set<JobOwner> owners = PENDING.remove(level);
 		if (owners == null) return;
 		List<Entry> list = new ArrayList<>();

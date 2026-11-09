@@ -23,6 +23,7 @@ import eu.sytxlabs.tsautocraft.job.CraftingJob.PlanEntry;
 import eu.sytxlabs.tsautocraft.job.CraftingJob.TreeLine;
 import eu.sytxlabs.tsautocraft.menu.AutocraftingTerminalMenu.Missing;
 import eu.sytxlabs.tsautocraft.menu.MenuUtil;
+import eu.sytxlabs.tsautocraft.util.MathExpr;
 
 /**
  * AE2 style request dialog, opened from a Tom's terminal (Ctrl + click on a craftable item, or click on a
@@ -35,7 +36,9 @@ import eu.sytxlabs.tsautocraft.menu.MenuUtil;
  * Tom's sync packets keep going to the screen underneath, so its item list stays valid.
  */
 public class CraftRequestScreen extends Screen implements IDataReceiver {
-	private static final int W = 230, H = 196;
+	private static final int W = 230, H = 196, H_INPUT = 132;
+	/** Amount view: field at this y, two button rows below, then one message line. */
+	private static final int AMOUNT_Y = 38, MESSAGE_Y = AMOUNT_Y + 58;
 	private static final int LIST_Y = 40, ROW_H = 18, ROWS = 6;
 	private static final int MAX_MISSING_LINES = 3;
 	private static final int TREE_ROW_H = 12, TREE_ROWS = ROWS * ROW_H / TREE_ROW_H, INDENT = 8;
@@ -69,34 +72,68 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		this.initialAmount = amount;
 	}
 
+	/** Height: compact while entering the amount, tall for the material list / tree. */
+	private int h() {
+		return preview ? H : H_INPUT;
+	}
+
 	@Override
 	protected void init() {
 		left = (width - W) / 2;
-		top = (height - H) / 2;
+		top = (height - h()) / 2;
 		amountButtons.clear();
 		String old = amountBox != null ? amountBox.getValue() : Long.toString(initialAmount);
-		amountBox = new EditBox(font, left + 8, top + 42, 60, 16, Component.translatable("label.tsautocraft.amount"));
-		amountBox.setMaxLength(6);
+		amountBox = new EditBox(font, left + 8, top + AMOUNT_Y, W - 16, 16, Component.translatable("label.tsautocraft.amount"));
+		amountBox.setMaxLength(32);
 		amountBox.setValue(old);
-		amountBox.setResponder(s -> AutocraftingTerminalScreen.digitsOnly(amountBox, s));
+		amountBox.setResponder(_ -> amountChanged());
+		amountBox.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("tooltip.tsautocraft.amount_math")));
 		addRenderableWidget(amountBox);
-		addAmountButton("+1", 1, 72);
-		addAmountButton("+16", 16, 96);
-		addAmountButton("+64", 64, 124);
-		calcBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.calculate"), _ -> calculate()).bounds(left + 8, top + H - 24, 104, 18).build());
-		startBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.start"), _ -> start()).bounds(left + 8, top + H - 24, 104, 18).build());
-		maxBtn = addRenderableWidget(Button.builder(maxLabel(), _ -> craftPossible()).bounds(left + 8, top + H - 24, 104, 18).build());
-		backBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.back"), _ -> back()).bounds(left + W - 112, top + H - 24, 104, 18).build());
+		String[] labels = {"+1", "+16", "+64", "×2", "-1", "-16", "-64", "÷2"};
+		for (int i = 0; i < labels.length; i++) {
+			int n = i % 4, row = i / 4;
+			int bw = (W - 16 - 3 * 2) / 4;
+			int x = left + 8 + n * (bw + 2), y = top + AMOUNT_Y + 20 + row * 18;
+			int step = n == 0 ? 1 : n == 1 ? 16 : 64;
+			Button.OnPress press = n == 3 ? _ -> scaleAmount(row == 0) : row == 0 ? _ -> addAmount(step) : _ -> addAmount(-step);
+			amountButtons.add(addRenderableWidget(Button.builder(Component.literal(labels[i]), press).bounds(x, y, bw, 16).build()));
+		}
+		int by = top + h() - 24;
+		calcBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.calculate"), _ -> calculate()).bounds(left + 8, by, 104, 18).build());
+		startBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.start"), _ -> start()).bounds(left + 8, by, 104, 18).build());
+		maxBtn = addRenderableWidget(Button.builder(maxLabel(), _ -> craftPossible()).bounds(left + 8, by, 104, 18).build());
+		backBtn = addRenderableWidget(Button.builder(Component.translatable("button.tsautocraft.back"), _ -> back()).bounds(left + W - 112, by, 104, 18).build());
 		viewBtn = addRenderableWidget(Button.builder(viewLabel(), _ -> toggleView()).bounds(left + W - 60, top + 18, 52, 16).build());
 		updateWidgets();
+		amountChanged();
 		if (!preview) setInitialFocus(amountBox);
 	}
 
-	private void addAmountButton(String label, int n, int x) {
-		amountButtons.add(addRenderableWidget(Button.builder(Component.literal(label), _ -> addAmount(n)).bounds(left + x, top + 42, 26, 16).build()));
+	private final List<Button> amountButtons = new ArrayList<>();
+
+	/** Amount field changed: red text and no "Calculate" while the expression is invalid. */
+	private void amountChanged() {
+		String v = amountBox.getValue();
+		StringBuilder clean = new StringBuilder(v.length());
+		for (char c : v.toCharArray()) if (c == ' ' || MathExpr.allowed(c)) clean.append(c);
+		if (clean.length() != v.length()) {
+			amountBox.setValue(clean.toString()); // calls this again with the clean text
+			return;
+		}
+		boolean ok = !Double.isNaN(MathExpr.eval(amountBox.getValue()));
+		amountBox.setTextColor(ok ? 0xFFE0E0E0 : 0xFFFF5555);
+		if (calcBtn != null) calcBtn.active = ok;
 	}
 
-	private final List<Button> amountButtons = new ArrayList<>();
+	/** Switches between the compact amount view and the tall preview (size and widget positions change). */
+	private void setPreview(boolean p) {
+		if (preview == p) {
+			updateWidgets();
+			return;
+		}
+		preview = p;
+		rebuildWidgets();
+	}
 
 	private void updateWidgets() {
 		amountBox.setVisible(!preview);
@@ -127,15 +164,22 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 	private void addAmount(int n) {
 		long v = parseAmount() + n;
 		if (parseAmount() == 1 && n > 1) v = n;
-		amountBox.setValue(Long.toString(Math.min(v, AutocraftingTerminalBlockEntity.maxRequest())));
+		setAmount(v);
 	}
 
+	private void scaleAmount(boolean up) {
+		setAmount(up ? parseAmount() * 2 : parseAmount() / 2);
+	}
+
+	private void setAmount(long v) {
+		amountBox.setValue(Long.toString(Math.clamp(v, 1, AutocraftingTerminalBlockEntity.maxRequest())));
+	}
+
+	/** Value of the amount field (a number or a math expression), rounded and clamped; 1 if invalid. */
 	private long parseAmount() {
-		try {
-			return Math.clamp(Long.parseLong(amountBox.getValue()), 1, AutocraftingTerminalBlockEntity.maxRequest());
-		} catch (NumberFormatException e) {
-			return 1;
-		}
+		double v = MathExpr.eval(amountBox.getValue());
+		if (Double.isNaN(v)) return 1;
+		return Math.clamp(Math.round(v), 1, AutocraftingTerminalBlockEntity.maxRequest());
 	}
 
 	private Component maxLabel() {
@@ -150,7 +194,9 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 	}
 
 	private void calculate() {
+		if (Double.isNaN(MathExpr.eval(amountBox.getValue()))) return;
 		previewAmount = parseAmount();
+		amountBox.setValue(Long.toString(previewAmount));
 		message = Component.empty();
 		missing.clear();
 		if (minecraft.player == null) return;
@@ -171,9 +217,8 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 
 	private void back() {
 		if (preview) {
-			preview = false;
 			message = Component.empty();
-			updateWidgets();
+			setPreview(false);
 			setInitialFocus(amountBox);
 		} else {
 			onClose();
@@ -191,10 +236,9 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 			if (tree.isEmpty()) showTree = false;
 			planOk = in.getBooleanOr("tsac_ok", false);
 			maxPossible = in.getLongOr("tsac_max", -1);
-			preview = true;
 			scroll = 0;
 			message = planOk ? Component.empty() : maxPossible > 0 ? Component.translatable("msg.tsautocraft.request.missing_possible", maxPossible) : Component.translatable("msg.tsautocraft.request.missing");
-			updateWidgets();
+			setPreview(true);
 			return;
 		}
 		var res = in.getString("tsac_res");
@@ -293,22 +337,31 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 	@Override
 	public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float a) {
 		super.extractBackground(g, mouseX, mouseY, a);
-		g.fill(left, top, left + W, top + H, 0xFF000000);
-		g.fill(left + 1, top + 1, left + W - 1, top + H - 1, 0xFFC6C6C6);
+		int h = h();
+		g.fill(left, top, left + W, top + h, 0xFF000000);
+		g.fill(left + 1, top + 1, left + W - 1, top + h - 1, 0xFFC6C6C6);
 		g.fill(left + 1, top + 1, left + W - 2, top + 2, 0xFFFFFFFF);
-		g.fill(left + 1, top + 1, left + 2, top + H - 2, 0xFFFFFFFF);
-		g.fill(left + 2, top + H - 2, left + W - 1, top + H - 1, 0xFF555555);
-		g.fill(left + W - 2, top + 2, left + W - 1, top + H - 1, 0xFF555555);
+		g.fill(left + 1, top + 1, left + 2, top + h - 2, 0xFFFFFFFF);
+		g.fill(left + 2, top + h - 2, left + W - 1, top + h - 1, 0xFF555555);
+		g.fill(left + W - 2, top + 2, left + W - 1, top + h - 1, 0xFF555555);
 
 		g.text(font, title, left + 8, top + 6, 0xFF404040, false);
-		g.item(item, left + 8, top + 18);
 		String name = item.getHoverName().getString();
-		if (preview) name = previewAmount + "x " + name;
-		g.text(font, font.plainSubstrByWidth(name, W - 36 - (viewBtn.visible ? 56 : 0)), left + 28, top + 22, 0xFF404040, false);
+		if (preview) {
+			name = previewAmount + "x " + name;
+			g.item(item, left + 8, top + 18);
+			g.text(font, font.plainSubstrByWidth(name, W - 36 - (viewBtn.visible ? 56 : 0)), left + 28, top + 22, 0xFF404040, false);
+		} else {
+			// Amount view: icon + name centered
+			name = font.plainSubstrByWidth(name, W - 36);
+			int x = left + (W - 20 - font.width(name)) / 2;
+			g.item(item, x, top + 18);
+			g.text(font, name, x + 20, top + 22, 0xFF404040, false);
+		}
 
 		if (preview && showTree) extractTree(g, mouseX, mouseY);
 		else if (preview) extractMaterials(g, mouseX, mouseY);
-		else extractMessage(g, top + 64);
+		else extractMessage(g, top + MESSAGE_Y, 0); // compact: one line, no missing list
 	}
 
 	private void extractMaterials(GuiGraphicsExtractor g, int mouseX, int mouseY) {
@@ -330,7 +383,7 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		if (materials.size() > ROWS) {
 			g.text(font, (scroll + 1) + "-" + Math.min(scroll + ROWS, materials.size()) + "/" + materials.size(), left + W - 50, top + 6, 0xFF404040, false);
 		}
-		extractMessage(g, y1 + 2);
+		extractMessage(g, y1 + 2, MAX_MISSING_LINES);
 		if (!hovered.isEmpty()) g.setTooltipForNextFrame(font, hovered, mouseX, mouseY);
 	}
 
@@ -362,7 +415,7 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		if (visible.size() > TREE_ROWS) {
 			g.text(font, (scroll + 1) + "-" + Math.min(scroll + TREE_ROWS, visible.size()) + "/" + visible.size(), left + W - 50, top + 6, 0xFF404040, false);
 		}
-		extractMessage(g, y1 + 2);
+		extractMessage(g, y1 + 2, MAX_MISSING_LINES);
 		if (hovered != null) g.setComponentTooltipForNextFrame(font, treeTooltip(hovered), mouseX, mouseY);
 	}
 
@@ -385,11 +438,11 @@ public class CraftRequestScreen extends Screen implements IDataReceiver {
 		return x - 6;
 	}
 
-	private void extractMessage(GuiGraphicsExtractor g, int y) {
+	private void extractMessage(GuiGraphicsExtractor g, int y, int maxMissing) {
 		if (message.getString().isEmpty()) return;
 		g.text(font, font.plainSubstrByWidth(message.getString(), W - 16), left + 8, y, 0xFF8B0000, false);
 		y += 10;
-		for (int i = 0; i < missing.size() && i < MAX_MISSING_LINES; i++) {
+		for (int i = 0; i < missing.size() && i < maxMissing; i++) {
 			Missing m = missing.get(i);
 			String line = Component.translatable("label.tsautocraft.item_count", m.count(), m.item().getHoverName()).getString();
 			g.text(font, font.plainSubstrByWidth(line, W - 16), left + 12, y, 0xFF8B0000, false);

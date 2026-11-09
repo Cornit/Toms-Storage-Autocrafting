@@ -1,0 +1,5 @@
+Mode : Alchimie
+
+Pour l'alambic. Dans ce mode, la grille du Pattern Terminal ressemble à l'alambic : combustible en haut à gauche (optionnel), ingrédient en haut au milieu, 1-3 fioles dans la rangée du bas (elles peuvent différer) ; les résultats sont calculés à partir des recettes d'alchimie, recettes de mods et de datapacks comprises.
+
+Le provider remplit un alambic vide : fioles et ingrédient à chaque infusion, le combustible seulement quand son emplacement est vide (il n'est pas compté par infusion, une poudre de blaze dure 20 infusions). Le « + » de JEI/REI encode un alambic complet. L'Importer attend la fin de l'infusion, il ne prend donc jamais de potions inachevées.

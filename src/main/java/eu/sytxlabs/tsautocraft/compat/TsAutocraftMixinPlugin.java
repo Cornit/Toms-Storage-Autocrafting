@@ -8,7 +8,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
-import net.fabricmc.loader.api.FabricLoader;
+import eu.sytxlabs.tsautocraft.platform.Platform;
 
 /** Skips the mixins into Tom's JEI/REI handlers when that recipe viewer is not installed (their targets reference its API). */
 public class TsAutocraftMixinPlugin implements IMixinConfigPlugin {
@@ -29,7 +29,7 @@ public class TsAutocraftMixinPlugin implements IMixinConfigPlugin {
 	@Override
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
 		String mod = REQUIRES.get(mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1));
-		return mod == null || FabricLoader.getInstance().isModLoaded(mod);
+		return mod == null || Platform.isModLoadedEarly(mod);
 	}
 
 	@Override

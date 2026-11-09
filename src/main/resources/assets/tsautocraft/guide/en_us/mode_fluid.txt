@@ -1,0 +1,3 @@
+Mode: Fluid processing
+
+Tom's storage has no fluids, so fluids travel as filled containers (buckets, bottles). Like processing, but filled containers are emptied into the machine's fluid tank and the empty containers go back into the network. An Importer with a filled container as filter fills empty containers from the machine back into the network. Filling patterns (empty bucket -> lava bucket) on a block with only a tank, like a cauldron under dripstone: the Pattern Provider fills the empty containers from it itself and waits until there is enough fluid.

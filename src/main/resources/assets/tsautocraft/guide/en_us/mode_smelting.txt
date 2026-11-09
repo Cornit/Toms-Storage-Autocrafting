@@ -1,0 +1,3 @@
+Mode: Smelting
+
+For furnaces, blast furnaces and smokers. The first grid item is the input; the result comes from the furnace recipe. Fuel is up to you (e.g. a hopper or Exporter feeding coal). Results come back through an Importer on the furnace or below it.

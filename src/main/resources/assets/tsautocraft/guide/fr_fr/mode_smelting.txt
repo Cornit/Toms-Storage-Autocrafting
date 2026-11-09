@@ -1,0 +1,3 @@
+Mode : Cuisson
+
+Pour les fourneaux, hauts fourneaux et fumoirs. Le premier item de la grille est l'entrée ; le résultat vient de la recette du fourneau. Le combustible est à votre charge (p. ex. un entonnoir ou un Exporter qui fournit du charbon). Les résultats reviennent via un Importer sur le fourneau ou en dessous.

@@ -1,0 +1,5 @@
+Mode: Brewing
+
+For the brewing stand. In this mode the Pattern Terminal grid looks like the brewing stand: fuel top left (optional), reagent top middle, 1-3 bottles in the bottom row (they may differ); the results are computed from the brewing recipes, mod and datapack recipes included.
+
+The provider fills an empty stand: bottles and reagent every brew, the fuel only when the fuel slot is empty (it is not counted per brew, one blaze powder lasts 20 brews). JEI/REI "+" encodes a full stand. The Importer waits until the brew is done, so it never takes unfinished potions.

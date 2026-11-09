@@ -1,0 +1,5 @@
+Mode: Processing
+
+For any machine with an inventory. Free amounts for up to 9 inputs and 3 outputs set by hand (use x2, /2, x10, /10 to scale them). The provider inserts all inputs at once or nothing. The outputs must come back through an Importer. Machine profiles (datapack) can define which sides get the items (also different sides for different inputs), a redstone pulse, a pause between deliveries and blocking per machine.
+
+Example (picture): water bottles. A Pattern Provider Connector fills a dispenser that faces a water source, pattern 1 glass bottle -> 1 water bottle. The built-in dispenser profile gives the dispenser a redstone pulse after every delivery, so it fills the bottle; an Importer with a water bottle as filter takes it out.

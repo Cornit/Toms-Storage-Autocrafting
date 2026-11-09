@@ -1,0 +1,3 @@
+Requester
+
+Mantiene hasta 6 objetos con unas existencias mínimas. Fija un objeto y una cantidad objetivo por entrada; cuando las existencias de la red bajan de ella, empieza automáticamente un trabajo por la diferencia. Solo hay un trabajo por entrada a la vez, así que nada se fabrica dos veces mientras los resultados siguen dentro de las máquinas. Visor de recetas: + o arrastra un objeto a una entrada.

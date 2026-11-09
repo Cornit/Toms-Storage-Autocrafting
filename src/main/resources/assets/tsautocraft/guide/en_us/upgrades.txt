@@ -1,0 +1,9 @@
+Upgrades
+
+Upgrades go into the panel on the right of the GUI; several of the same kind stack in one slot.
+
+- Capacity: Autocrafting Terminal more parallel jobs; Pattern Provider 9 more pattern slots.
+- Speed: Importer/Exporter shorter interval; Pattern Provider one more delivery per tick; Level Maintainer shorter check interval.
+- Stack: Importer/Exporter 4x more items per operation; Pattern Provider 4x more crafts per delivery (up to 64).
+- Crafting: Exporter crafts missing filter items.
+- Redstone: Importer/Exporter/Level Maintainer work only with or without a signal or toggle on pulses; Pattern Provider pulses the machine after every delivery.

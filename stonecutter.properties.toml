@@ -1,0 +1,41 @@
+# Versions per Minecraft version and loader (https://stonecutter.kikugie.dev/wiki/config/properties)
+# A new Minecraft version: add it in settings.gradle.kts (match(...)) and give it sections here.
+mod.id = "tsautocraft"
+mod.name = "Tom's Storage Autocrafting"
+mod.group = "eu.sytxlabs.tsautocraft"
+mod.version = "0.5.0"
+
+deps.fabric_loader = "0.19.5"
+loomx.loom_version = "1.16-SNAPSHOT"
+
+
+["26.3"]
+# Releases to mark compatible on Modrinth/CurseForge
+mod.mc_releases = ["26.3"]
+# REI API (compile only, maven.shedaniel.me)
+deps.rei = "26.3.823"
+
+
+[fabric."26.3"]
+# Range in fabric.mod.json
+mod.mc_compat = ">=26.3 <26.4"
+deps.fabric_api = "0.160.5+26.3"
+# Modrinth maven: Tom's Storage version number, the others are version ids (JEI 31.17.0.108, MezzConfig 0.6.10, Jade 26.3.5)
+deps.toms_storage = "26.3-2.12.2-fabric"
+deps.jei = "1Uzmw8Mr"
+deps.mezzconfig = "kWsxPwbN"
+deps.jade = "71CTWqdE"
+deps.cloth_config = "26.3.159+fabric"
+deps.modmenu = "21.0.0"
+
+
+[neoforge."26.3"]
+# Range in neoforge.mods.toml
+mod.mc_compat = "[26.3, 26.4)"
+deps.neo_loader = "26.3.0.102"
+# JEI 31.17.0.108, MezzConfig 0.6.11, Jade 26.3.5
+deps.toms_storage = "26.3-2.12.2"
+deps.jei = "hGAWEBN8"
+deps.mezzconfig = "bmeYNg4m"
+deps.jade = "dVB8U7Td"
+deps.cloth_config = "26.3.159+neoforge"

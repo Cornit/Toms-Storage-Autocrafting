@@ -1,0 +1,3 @@
+Pattern Access Terminal
+
+Shows the pattern slots of every Pattern Provider on the cable network in one GUI. Insert, take out and swap patterns without walking to each provider. The search box filters by provider name or pattern output; name providers in an anvil to find them easily. It holds no items itself.

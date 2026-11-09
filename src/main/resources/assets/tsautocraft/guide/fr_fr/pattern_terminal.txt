@@ -1,0 +1,11 @@
+Pattern Terminal
+
+Un terminal de stockage de Tom (recherche, tri, mode haut) avec une zone d'encodage à la place d'une grille de fabrication.
+
+- Bouton de mode (à gauche) : fabrication, traitement, cuisson, fluide, alchimie (et modes d'autres mods).
+- Grille : items fantômes, rien n'est consommé. En mode fabrication, un item par slot et le résultat est calculé. Dans les modes libres, un clic gauche avec une pile fixe sa taille, un clic droit ajoute/retire un item.
+- Sorties : définies à la main dans les modes libres.
+- x2, /2, x10, /10 (à droite de la zone d'encodage, modes libres seulement) : mettent toutes les quantités à l'échelle d'un coup. Grisés quand une quantité dépasserait 999 ou ne serait plus un nombre entier.
+- S : substituts oui/non (fabrication seulement, tout item donnant le même résultat peut être utilisé).
+- X : vider la grille, L : recharger dans la grille le modèle du slot vierge.
+- Placez des Modèles vierges dans le slot du haut et appuyez sur Encoder. Un modèle nommé garde son nom lorsqu'il est réencodé.

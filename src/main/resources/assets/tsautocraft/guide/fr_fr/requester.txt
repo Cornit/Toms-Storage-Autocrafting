@@ -1,0 +1,3 @@
+Requester
+
+Maintient jusqu'à 6 items à un stock minimal. Définissez un item et une quantité cible par entrée ; quand le stock du réseau passe en dessous, une tâche pour la différence démarre automatiquement. Une seule tâche par entrée tourne à la fois, rien n'est donc fabriqué deux fois tant que des résultats sont encore dans les machines. Visionneuse de recettes : + ou glissez un item sur une entrée.

@@ -1,0 +1,7 @@
+Exporter und Importer
+
+Exporter: schiebt gefilterte Items aus dem Netzwerk in das Inventar, auf das er zeigt (ohne Filter passiert nichts). Von Aufträgen reservierte Items werden nie exportiert. Mit Crafting-Upgrade werden fehlende Filter-Items gecraftet.
+
+Importer: zieht Items aus dem Inventar, auf das er zeigt, ins Netzwerk; kein Filter = alles. Er meldet auch die Ergebnisse von Aufträgen, setze ihn also an die Ausgabetruhe hinter Craftern und Maschinen.
+
+Filter: normale Items sind Geister-Items, Tom's Filter-Items sind echte Items. Modi: reihum, Priorität, zufällig und Blacklist (Importer). Upgrades: Geschwindigkeit, Stapel, Redstone. Verkleidete Varianten lassen sich mit Tom's Paint Kit bemalen.
