@@ -50,12 +50,24 @@ sourceSets.main {
     resources.srcDir(rootProject.file("src/neoforge/resources"))
 }
 
+// NeoForge game tests (gradlew :26.3-neoforge:runGameTestServer): shared tests in src/gametest + test mod, not in the jar
+val gametest: SourceSet = sourceSets.create("gametest") {
+    // src/gametest/java is added by Stonecutter (source set name)
+    java.srcDir(rootProject.file("src/gametest-neoforge/java"))
+    resources.srcDir(rootProject.file("src/gametest-neoforge/resources"))
+    compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
+}
+
 neoForge {
     version = sc.properties["deps.neo_loader"]
 
     mods {
         register(sc.properties["mod.id"]) {
             sourceSet(sourceSets.main.get())
+        }
+        register("tsautocraft_gametest") {
+            sourceSet(gametest)
         }
     }
 
@@ -67,6 +79,13 @@ neoForge {
         register("server") {
             gameDirectory = rootProject.file("run-neoforge")
             server()
+        }
+        // Runs all tests of the test mod headless and exits (code = failed required tests)
+        register("gameTestServer") {
+            type = "gameTestServer"
+            sourceSet = gametest
+            gameDirectory.set(project.layout.buildDirectory.dir("gametest"))
+            programArguments.addAll("--tests", "tsautocraft_gametest:*", "--report", project.layout.buildDirectory.file("gametest/report.xml").get().asFile.absolutePath)
         }
     }
 }

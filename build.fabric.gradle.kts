@@ -63,7 +63,7 @@ sourceSets.main {
 // Fabric game tests (gradlew :26.3-fabric:runGametest): own source set + test mod, not part of the mod jar
 val gametest: SourceSet = sourceSets.create("gametest") {
     java.srcDir(rootProject.file("src/gametest/java"))
-    resources.srcDir(rootProject.file("src/gametest/resources"))
+    resources.srcDir(rootProject.file("src/gametest-fabric/resources"))
     compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
     runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
 }

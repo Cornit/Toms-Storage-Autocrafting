@@ -198,10 +198,15 @@ public final class PatternEncoder {
 
 	/** Pattern with free inputs (up to 9) and outputs (up to 3) of the given mode (processing and similar modes). */
 	public static Result encodeFree(net.minecraft.resources.Identifier mode, List<ItemStack> grid, List<ItemStack> outputs) {
+		return encodeFree(mode, grid, outputs, 9, 3);
+	}
+
+	/** Like {@link #encodeFree(net.minecraft.resources.Identifier, List, List)} with other limits (API 4, see {@link PatternMode#maxInputs()}). */
+	public static Result encodeFree(net.minecraft.resources.Identifier mode, List<ItemStack> grid, List<ItemStack> outputs, int maxInputs, int maxOutputs) {
 		List<PatternData.Entry> in = new ArrayList<>();
-		for (int i = 0; i < 9 && i < grid.size(); i++) if (!grid.get(i).isEmpty()) in.add(PatternData.Entry.of(grid.get(i)));
+		for (int i = 0; i < maxInputs && i < grid.size(); i++) if (!grid.get(i).isEmpty()) in.add(PatternData.Entry.of(grid.get(i)));
 		List<PatternData.Entry> out = new ArrayList<>();
-		for (int i = 0; i < 3 && i < outputs.size(); i++) if (!outputs.get(i).isEmpty()) out.add(PatternData.Entry.of(outputs.get(i)));
+		for (int i = 0; i < maxOutputs && i < outputs.size(); i++) if (!outputs.get(i).isEmpty()) out.add(PatternData.Entry.of(outputs.get(i)));
 		return Result.ok(new PatternData(mode, in, out));
 	}
 

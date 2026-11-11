@@ -146,7 +146,10 @@ public class TsAutocraftJeiPlugin implements IModPlugin {
 	}
 
 	private static ItemStack stackOf(IRecipeSlotView view) {
-		return view.getDisplayedItemStack().or(() -> view.getItemStacks().findFirst()).orElse(ItemStack.EMPTY);
+		ItemStack st = view.getDisplayedItemStack().or(() -> view.getItemStacks().findFirst()).orElse(ItemStack.EMPTY);
+		if (!st.isEmpty()) return st;
+		// Fluid slot (e.g. Create mixing): as filled buckets
+		return view.getDisplayedIngredient().map(t -> eu.sytxlabs.tsautocraft.compat.FluidIngredients.toBuckets(t.getIngredient())).orElse(ItemStack.EMPTY);
 	}
 
 	private record PatternTransfer(IRecipeTransferHandlerHelper helper) implements IUniversalRecipeTransferHandler<PatternTerminalMenu> {
@@ -165,6 +168,8 @@ public class TsAutocraftJeiPlugin implements IModPlugin {
 		public IRecipeTransferError transferRecipe(PatternTerminalMenu menu, Object recipe, IRecipeSlotsView slots, Player player, boolean maxTransfer, boolean doTransfer) {
 			JeiRecipe r = JeiRecipe.of(recipe, slots);
 			if (r.error() != null) return helper.createUserErrorWithTooltip(Component.translatable(r.error()));
+			// The grid has 9 slots: larger recipes (API 4 modes) can only be encoded by the Pattern Provider's "+"
+			if (r.in().size() > 9) return helper.createUserErrorWithTooltip(Component.translatable("msg.tsautocraft.jei.provider_only"));
 			if (doTransfer) r.send(player);
 			return null;
 		}
@@ -213,7 +218,7 @@ public class TsAutocraftJeiPlugin implements IModPlugin {
 			}
 			String error = null;
 			if (in.stream().allMatch(ItemStack::isEmpty) || (!mode.fixedInputs() && out.isEmpty())) error = "msg.tsautocraft.jei.no_items";
-			else if (in.size() > 9) error = "msg.tsautocraft.jei.too_many";
+			else if (in.size() > mode.maxInputs()) error = "msg.tsautocraft.jei.too_many";
 			return new JeiRecipe(mode, in, out, error);
 		}
 
@@ -225,7 +230,7 @@ public class TsAutocraftJeiPlugin implements IModPlugin {
 				var li = o.list("jei_in", ItemStack.OPTIONAL_CODEC);
 				in.forEach(li::add);
 				var lo = o.list("jei_out", ItemStack.OPTIONAL_CODEC);
-				out.stream().limit(3).forEach(lo::add);
+				out.stream().limit(mode.maxOutputs()).forEach(lo::add);
 			});
 		}
 	}

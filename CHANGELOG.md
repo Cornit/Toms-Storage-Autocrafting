@@ -1,3 +1,45 @@
+# 0.6.0
+
+## New
+
+- Works together with Tom's Storage Network (optional addon): patterns take fluids straight from its tanks, Pattern
+  Providers and jobs reach across its Dimensional Links, its Wireless Antennas extend the reach of our terminals, and on
+  Fabric with Create Fly it adds pattern modes for Create machines.
+- JEI/REI "+": fluid ingredients of a recipe (e.g. Create mixing or filling) are encoded as filled buckets (amount rounded
+  up to whole buckets) instead of being left out.
+- Recipes with more than 9 inputs can be encoded with the "+" of a Pattern Provider for pattern modes that allow it
+  (e.g. 9x9 mechanical crafting); the Pattern Terminal shows a hint instead of cutting the recipe.
+
+## Fixed
+
+- Pulls from Tom's storage (Exporter, Importer's empty containers, stock extensions) first bring Tom's change tracker
+  up to date: before, items that arrived since the last count could stay invisible until a terminal looked.
+
+## Development
+
+- Game tests also run on NeoForge (`gradlew :26.3-neoforge:runGameTestServer`, CI).
+
+- `/tsautocraft testsetup`: builds test stations (crafting with patterns, smelting, importer / exporter, all items).
+
+## Faster
+
+- The shared network view is found by block position: before, Tom's cable walk returned a new node set on every lookup
+  from one of our blocks, so the view was rebuilt every time instead of once per second.
+
+## API 4 (backward compatible)
+
+- `StockExtensions`: extra network stock used by every count, plan and pull (e.g. fluids in tanks as filled containers).
+- `NetworkBridges`: Pattern Providers, job owners and jobs of networks in other levels belong to the network.
+- `TerminalReach`: extra reach for the menus of our terminal blocks.
+- `PatternMode.maxInputs()` / `maxOutputs()`, `PatternEncoder.encodeFree(mode, grid, outputs, maxInputs, maxOutputs)`.
+- `CraftingJob.target()` / `amount()`, `TsAutocraftApi.activeAmount(level, pos, item)` (what running jobs craft).
+- `FluidUnits`: exact fluid amounts in patterns. With an extension that stores them (Tom's Storage Network's
+  tanks), JEI/REI fluid ingredients are encoded in mB (item "Fluid (mB)") instead of whole buckets; deliveries put
+  the exact amount into the machine's tank.
+- `TerminalReach.registerDeny(hook)`: other mods can keep players out of our terminals (e.g. a network lock).
+- `TsAutocraftApi.itemsArrived(level, pos, stack, count)`: credits results that reached the network without an
+  Importer (e.g. fluid moved into tanks that count as filled containers).
+
 # 0.5.0
 
 ## New

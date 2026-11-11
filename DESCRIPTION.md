@@ -37,15 +37,16 @@ All Pattern Providers of the network in one terminal: insert, take out and swap 
 
 ### Request in any terminal
 Craftable items show up in **Tom's Storage / Crafting Terminal** with a green **+** (also when none are in storage).
-**Ctrl + click** opens the request dialog with an **AE2-style material list**: what comes from storage, what gets crafted (all steps) and what is missing, or as a **recipe tree**. If something is missing, **"Craft N"** offers the largest amount you can craft right now.
+**Ctrl + click** opens the request dialog with an **AE2-style material list**: what comes from storage, what gets crafted (all steps) and what is missing. If something is missing, **"Craft N"** offers the largest amount you can craft right now.
+The **recipe tree** shows the whole plan as a graph with item icons and amounts: drag to move, scroll to zoom, click a node to fold it. Red = missing, blue = crafted, grey = from storage – the paths to missing items are opened right away, and you can start the job from there.
 In Tom's **Crafting Terminal**, **Ctrl + click** on JEI's/REI's "+" also crafts the missing ingredients of a recipe.
 
 ### Autocrafting Terminal
 Runs the crafting jobs of the network and shows all of them, including jobs started by Requesters and Exporters.
-- **Progress per step** and **why a job is stuck**: which item is missing and how many, which provider is busy (by machine or anvil name and position), no machine, …
+- **Progress per step** and **why a job is stuck**: which item is missing and how many, which provider is busy (by machine or anvil name and position), no machine, storage full, …
 - **Priorities** (high / normal / low): higher priority jobs get free Pattern Providers first.
 - **Pause** (frees the reserved items) and **cancel** jobs; unprocessed ingredients of a cancelled job come back from the machines.
-- **Estimated time left** per job and a **job history**.
+- **Estimated time left** per job and a **job history** – request one of your past jobs again with one click.
 - Jobs **reserve** their ingredients, so other jobs and Exporters do not take them away.
 - Opens from afar with Tom's **(Advanced) Wireless Terminal** (the Pattern Terminal too).
 
@@ -66,6 +67,10 @@ Available as a full block (signal on all sides) and as a directional connector (
 - **Modes**: round robin, priority, random, blacklist (Importer).
 - Both are available as paintable framed versions.
 
+### Memory Card
+Set up one block, copy it to the rest: **shift + right click** copies the settings of a Pattern Provider, Exporter, Importer, Requester, Level Maintainer or Crafting Emitter, **right click** applies them to a block of the same type.
+Ghost filters are copied directly; real filter items and missing upgrades are taken from your inventory (an empty filter is set up like the original) – the card never creates items and tells you what was missing.
+
 ### Built for big networks
 Item counts, network scans and craftable lists are cached and shared by all blocks of a network, jobs that wait for items stay idle, and terminals only send updates when something changed – so large bases with many providers and jobs stay light on TPS.
 
@@ -84,7 +89,7 @@ Several upgrades of the same kind fit into one slot.
   - **"+" in the Requester / Level Maintainer**: adds the recipe's output as a new entry.
   - **Ctrl + "+" in Tom's Crafting Terminal**: crafts missing ingredients.
   - Drag items from JEI onto pattern, Requester and filter slots.
-- **Jade**: status of Pattern Providers, Autocrafting Terminals, Requesters, Crafting Emitters and Exporters.
+- **Jade**: status of Pattern Providers, Autocrafting Terminals, Requesters, Crafting Emitters, Importers and Exporters, including crafts / items per minute.
 - **Mod Menu**: in-game config screen.
 
 ---
@@ -98,7 +103,7 @@ Several upgrades of the same kind fit into one slot.
 5. Place an **Autocrafting Terminal** on the same network: it runs the jobs.
 6. **Ctrl + click** a craftable item in any Tom's terminal → *Calculate* → *Start*.
 
-Stuck? Craft the **Autocrafting Guide** (book + Blank Pattern): it explains every block in game, with setup pictures – including how to automate water bottles with a dispenser.
+Stuck? Craft the **Autocrafting Guide** (book + Blank Pattern): an in-game book (two pages side by side) that explains every block, with setup pictures – including how to automate water bottles with a dispenser. Resource packs can translate the texts and change the pictures.
 
 ---
 
@@ -109,12 +114,16 @@ Stuck? Craft the **Autocrafting Guide** (book + Blank Pattern): it explains ever
 - `enableDisabledCrafterSlots`: allow the provider to use disabled crafter slots
 - Job limits, timeouts, Requester and Importer/Exporter speed
 
+Server admins: `/tsautocraft reload` reads the config again, `/tsautocraft jobs` lists every running job with its position, `/tsautocraft cancel <id>` cancels one.
+
 ### Datapacks
 - **Machine profiles** (`data/<namespace>/tsautocraft/machines/*.json`): insert sides (also per input: `routes` by item, tag, fuel or pattern position), blocking mode, a redstone pulse and a `cooldown` between deliveries per machine. Profiles for furnaces (fuel from the side), the brewing stand (bottles and fuel from the side, reagent on top) and dispenser/dropper are built in.
 - Item tags `#tsautocraft:not_autocraftable` and `#tsautocraft:no_substitute`.
 
 ### For mod developers
-A public API: own pattern modes, Importer/Exporter modes, crafting providers, job owners, upgrades, machine profiles and events. The API jar (`-api.jar`, with sources) is only available on [GitHub](https://github.com/SytxLabs/Toms-Storage-Autocrafting/releases).
+Works together with **Tom's Storage Network**: fluids for patterns straight from its tanks, autocrafting across its Dimensional Links and Create machine pattern modes (Fabric, Create Fly).
+
+A public API: own pattern modes, Importer/Exporter modes, crafting providers, job owners, upgrades, machine profiles, events, stock extensions, network bridges and terminal reach. The API jar (`-api.jar`, with sources) is only available on [GitHub](https://github.com/SytxLabs/Toms-Storage-Autocrafting/releases).
 
 ---
 

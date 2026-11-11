@@ -20,8 +20,12 @@ import eu.sytxlabs.tsautocraft.util.ItemKey;
  * {@link PlannerHooks}. It is also published as a separate jar (classifier {@code api}) to compile against.
  */
 public final class TsAutocraftApi {
-	/** Raised on incompatible API changes (3: {@link CraftingEvents} use the loader independent {@link Event}). */
-	public static final int VERSION = 3;
+	/**
+	 * Raised on API changes (3: {@link CraftingEvents} use the loader independent {@link Event}; 4: {@link StockExtensions},
+	 * {@link NetworkBridges}, {@link TerminalReach} (incl. {@link TerminalReach#registerDeny}), {@link FluidUnits},
+	 * {@link #itemsArrived}, {@link #activeAmount}, {@link PatternMode#maxInputs()} / {@link PatternMode#maxOutputs()}, all backward compatible).
+	 */
+	public static final int VERSION = 4;
 
 	private TsAutocraftApi() {}
 
@@ -39,6 +43,15 @@ public final class TsAutocraftApi {
 		return l;
 	}
 
+	/** Amount of {@code item} the unfinished jobs of the network are crafting right now (API 4; avoids double requests). */
+	public static long activeAmount(Level level, BlockPos pos, ItemStack item) {
+		long n = 0;
+		for (CraftingJob j : jobs(level, pos)) {
+			if (!j.isFinished() && ItemStack.isSameItemSameComponents(j.target(), item)) n += j.amount();
+		}
+		return n;
+	}
+
 	/**
 	 * Starts a job in an Autocrafting Terminal of the network.
 	 * @return null if it started, otherwise a translation key of the error ({@code msg.tsautocraft.request.*}); missing ingredients give {@code msg.tsautocraft.request.missing}
@@ -47,6 +60,15 @@ public final class TsAutocraftApi {
 		var r = TerminalCrafting.request(level, pos, item, amount);
 		if (r.ok()) return null;
 		return r.error() != null ? r.error() : "msg.tsautocraft.request.missing";
+	}
+
+	/**
+	 * Results of crafts reached the network some other way than through an Importer (e.g. another mod moved a machine's
+	 * fluid into tanks that count as filled containers): credits {@code count} of {@code stack} to the running jobs
+	 * waiting for it, like an Importer at {@code pos} would (API 4).
+	 */
+	public static void itemsArrived(Level level, BlockPos pos, ItemStack stack, long count) {
+		TerminalCrafting.itemsArrived(level, pos, stack, count);
 	}
 
 	/** What a request would be missing right now (empty = it can be crafted), null without an Autocrafting Terminal. */

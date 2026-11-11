@@ -340,5 +340,21 @@
   "command.tsautocraft.jobs.teleport": "Clic: comando de teletransporte",
   "command.tsautocraft.jobs.cancel_hint": "Clic: comando para cancelar",
   "command.tsautocraft.cancel.ok": "Trabajo #%s (%s) cancelado",
-  "command.tsautocraft.cancel.unknown": "No hay ningún trabajo #%s en curso"
+  "command.tsautocraft.cancel.unknown": "No hay ningún trabajo #%s en curso",
+  "msg.tsautocraft.jei.provider_only": "Demasiadas entradas para el Pattern Terminal: usa el «+» de un Pattern Provider",
+  "item.tsautocraft.fluid_unit": "Fluido (mB)",
+  "item.tsautocraft.fluid_unit.named": "%s (mB)",
+  "command.tsautocraft.testsetup": "%s estaciones de prueba construidas al sur:",
+  "teststation.tsautocraft.crafting": "Fabricación",
+  "teststation.tsautocraft.crafting.l2": "tablas, palos",
+  "teststation.tsautocraft.crafting.l3": "mantenedor: palos",
+  "teststation.tsautocraft.smelting": "Fundición",
+  "teststation.tsautocraft.smelting.l2": "hierro, vidrio",
+  "teststation.tsautocraft.smelting.l3": "horno + importador",
+  "teststation.tsautocraft.io": "Importar / exportar",
+  "teststation.tsautocraft.io.l2": "piedra -> barril",
+  "teststation.tsautocraft.io.l3": "grava <- barril",
+  "teststation.tsautocraft.items": "Todos los objetos",
+  "teststation.tsautocraft.items.l2": "uno de cada",
+  "teststation.tsautocraft.items.l3": ""
 }

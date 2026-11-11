@@ -60,12 +60,19 @@ import eu.sytxlabs.tsautocraft.platform.Platform;
 public final class ModContent {
 	private static final List<Item> TAB_ITEMS = new ArrayList<>();
 
+	/** All items of the creative tab (e.g. for {@code /tsautocraft testsetup}). */
+	public static List<Item> items() {
+		return java.util.Collections.unmodifiableList(TAB_ITEMS);
+	}
+
 	// --- Data component ---
 	public static final DataComponentType<PatternData> PATTERN_COMPONENT = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, TsAutocraft.id("pattern"), DataComponentType.<PatternData>builder().persistent(PatternData.CODEC).build());
 	/** Description line of our blocks and upgrades (default component, see {@link ItemDescription}). */
 	public static final DataComponentType<ItemDescription> DESCRIPTION_COMPONENT = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, TsAutocraft.id("description"), DataComponentType.<ItemDescription>builder().persistent(ItemDescription.CODEC).networkSynchronized(ItemDescription.STREAM_CODEC).build());
 
 	/** Settings stored on a Memory Card. */
+	/** Fluid of a {@code fluid_unit} stack (API 4, {@code api/FluidUnits}). */
+	public static final DataComponentType<net.minecraft.resources.Identifier> FLUID_UNIT_COMPONENT = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, TsAutocraft.id("fluid_unit"), DataComponentType.<net.minecraft.resources.Identifier>builder().persistent(net.minecraft.resources.Identifier.CODEC).networkSynchronized(net.minecraft.resources.Identifier.STREAM_CODEC).build());
 	public static final DataComponentType<MemoryCardData> MEMORY_CARD_COMPONENT = Registry.register(BuiltInRegistries.DATA_COMPONENT_TYPE, TsAutocraft.id("memory_card"), DataComponentType.<MemoryCardData>builder().persistent(MemoryCardData.CODEC).build());
 
 	// --- Blocks ---
@@ -100,6 +107,8 @@ public final class ModContent {
 	/** In-game guide, right click opens {@code client/GuideScreen}. */
 	/** Copies settings between blocks of the same type. */
 	public static final MemoryCardItem MEMORY_CARD = item("memory_card", MemoryCardItem::new, p -> p.stacksTo(1).component(DESCRIPTION_COMPONENT, new ItemDescription("tooltip.tsautocraft.memory_card", false)));
+	/** Virtual item for exact fluid amounts in patterns (API 4); not in the creative tab. */
+	public static final FluidUnitItem FLUID_UNIT = hiddenItem("fluid_unit", FluidUnitItem::new);
 	public static final GuideBookItem GUIDE_BOOK = item("guide_book", GuideBookItem::new, p -> p.stacksTo(1).component(DESCRIPTION_COMPONENT, new ItemDescription("tooltip.tsautocraft.guide_book", false)));
 
 	static {
@@ -168,6 +177,11 @@ public final class ModContent {
 	}
 
 	/** Upgrade item with the description {@code tooltip.tsautocraft.<id>}. */
+	private static <I extends Item> I hiddenItem(String name, Function<Item.Properties, I> factory) {
+		ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, TsAutocraft.id(name));
+		return Registry.register(BuiltInRegistries.ITEM, key, factory.apply(new Item.Properties().setId(key)));
+	}
+
 	private static Item upgrade(String name) {
 		return item(name, Item::new, p -> p.stacksTo(16).component(DESCRIPTION_COMPONENT, new ItemDescription("tooltip.tsautocraft." + name, false)));
 	}

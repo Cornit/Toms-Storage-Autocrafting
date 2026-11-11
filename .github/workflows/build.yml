@@ -27,6 +27,9 @@ jobs:
       - name: Game tests (Fabric, headless server)
         run: ./gradlew :26.3-fabric:runGametest --stacktrace
 
+      - name: Game tests (NeoForge, headless server)
+        run: ./gradlew :26.3-neoforge:runGameTestServer --stacktrace
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
