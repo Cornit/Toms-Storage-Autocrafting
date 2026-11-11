@@ -340,5 +340,21 @@
   "command.tsautocraft.jobs.teleport": "Clic : commande de téléportation",
   "command.tsautocraft.jobs.cancel_hint": "Clic : commande d'annulation",
   "command.tsautocraft.cancel.ok": "Tâche #%s (%s) annulée",
-  "command.tsautocraft.cancel.unknown": "Aucune tâche #%s en cours"
+  "command.tsautocraft.cancel.unknown": "Aucune tâche #%s en cours",
+  "msg.tsautocraft.jei.provider_only": "Trop d'entrées pour le terminal de motifs : utilisez le « + » d'un fournisseur de motifs",
+  "item.tsautocraft.fluid_unit": "Fluide (mB)",
+  "item.tsautocraft.fluid_unit.named": "%s (mB)",
+  "command.tsautocraft.testsetup": "%s stations de test construites au sud :",
+  "teststation.tsautocraft.crafting": "Artisanat",
+  "teststation.tsautocraft.crafting.l2": "planches, bâtons",
+  "teststation.tsautocraft.crafting.l3": "maintien : bâtons",
+  "teststation.tsautocraft.smelting": "Cuisson",
+  "teststation.tsautocraft.smelting.l2": "fer, verre",
+  "teststation.tsautocraft.smelting.l3": "four + importateur",
+  "teststation.tsautocraft.io": "Import / export",
+  "teststation.tsautocraft.io.l2": "pierre -> tonneau",
+  "teststation.tsautocraft.io.l3": "gravier <- tonneau",
+  "teststation.tsautocraft.items": "Tous les objets",
+  "teststation.tsautocraft.items.l2": "un de chaque",
+  "teststation.tsautocraft.items.l3": ""
 }

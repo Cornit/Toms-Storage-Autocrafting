@@ -153,7 +153,7 @@ public class ImporterBlockEntity extends AbstractIOBlockEntity implements Status
 			try (Transaction t = Transaction.openOuter()) {
 				if (tank.extract(c.fluid(), c.amount(), t) < c.amount()) continue; // not enough yet
 			}
-			ItemStack empty = StorageUtil.pull(net, c.empty(), 1);
+			ItemStack empty = StorageUtil.pull(net, level, c.empty(), 1);
 			if (empty.isEmpty()) continue;
 			ItemStack filled = FluidUtil.fill(empty, c.fluid(), f.copyWithCount(1), tank);
 			if (filled == null) {

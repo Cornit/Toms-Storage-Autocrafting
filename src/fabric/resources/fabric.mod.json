@@ -4,7 +4,7 @@
   "version": "${version}",
 
   "name": "Tom's Storage Autocrafting",
-  "description": "Unofficial AE2-style autocrafting for Tom's Simple Storage: Pattern Terminal, Pattern Provider, Autocrafting Terminal, Requester, Exporter, Importer and Crafting Emitter. Request crafts right in Tom's terminals, with job priorities, fluids via containers, upgrades, Jade and an API for other mods.",
+  "description": "Unofficial AE2-style autocrafting for Tom's Simple Storage: Pattern Terminal, Pattern Provider, Autocrafting Terminal, Requester, Level Maintainer, Exporter, Importer, Crafting Emitter and Memory Card. Request crafts right in Tom's terminals, with a recipe tree, job priorities, fluids via containers, upgrades, Jade and an API for other mods.",
   "authors": [
     "SytxLabs"
   ],

@@ -340,5 +340,21 @@
   "command.tsautocraft.jobs.teleport": "Click: teleport command",
   "command.tsautocraft.jobs.cancel_hint": "Click: cancel command",
   "command.tsautocraft.cancel.ok": "Job #%s (%s) cancelled",
-  "command.tsautocraft.cancel.unknown": "No running job #%s"
+  "command.tsautocraft.cancel.unknown": "No running job #%s",
+  "msg.tsautocraft.jei.provider_only": "Too many inputs for the Pattern Terminal: use the \"+\" of a Pattern Provider",
+  "item.tsautocraft.fluid_unit": "Fluid (mB)",
+  "item.tsautocraft.fluid_unit.named": "%s (mB)",
+  "command.tsautocraft.testsetup": "%s test stations built south of you:",
+  "teststation.tsautocraft.crafting": "Crafting",
+  "teststation.tsautocraft.crafting.l2": "planks, sticks",
+  "teststation.tsautocraft.crafting.l3": "maintainer: sticks",
+  "teststation.tsautocraft.smelting": "Smelting",
+  "teststation.tsautocraft.smelting.l2": "iron, glass",
+  "teststation.tsautocraft.smelting.l3": "furnace + importer",
+  "teststation.tsautocraft.io": "Importer / Exporter",
+  "teststation.tsautocraft.io.l2": "cobble -> barrel",
+  "teststation.tsautocraft.io.l3": "gravel <- barrel",
+  "teststation.tsautocraft.items": "All items",
+  "teststation.tsautocraft.items.l2": "one of each",
+  "teststation.tsautocraft.items.l3": ""
 }

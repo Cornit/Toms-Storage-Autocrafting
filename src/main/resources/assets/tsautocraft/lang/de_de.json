@@ -340,5 +340,21 @@
   "command.tsautocraft.jobs.teleport": "Klick: Teleport-Befehl",
   "command.tsautocraft.jobs.cancel_hint": "Klick: Abbruch-Befehl",
   "command.tsautocraft.cancel.ok": "Job #%s (%s) abgebrochen",
-  "command.tsautocraft.cancel.unknown": "Kein laufender Job #%s"
+  "command.tsautocraft.cancel.unknown": "Kein laufender Job #%s",
+  "msg.tsautocraft.jei.provider_only": "Zu viele Eingaben für das Pattern Terminal: nutze das \"+\" eines Pattern Providers",
+  "item.tsautocraft.fluid_unit": "Flüssigkeit (mB)",
+  "item.tsautocraft.fluid_unit.named": "%s (mB)",
+  "command.tsautocraft.testsetup": "%s Test-Stationen südlich von dir gebaut:",
+  "teststation.tsautocraft.crafting": "Crafting",
+  "teststation.tsautocraft.crafting.l2": "Bretter, Stöcke",
+  "teststation.tsautocraft.crafting.l3": "Maintainer: Stöcke",
+  "teststation.tsautocraft.smelting": "Schmelzen",
+  "teststation.tsautocraft.smelting.l2": "Eisen, Glas",
+  "teststation.tsautocraft.smelting.l3": "Ofen + Importer",
+  "teststation.tsautocraft.io": "Importer / Exporter",
+  "teststation.tsautocraft.io.l2": "Bruchstein -> Fass",
+  "teststation.tsautocraft.io.l3": "Kies <- Fass",
+  "teststation.tsautocraft.items": "Alle Items",
+  "teststation.tsautocraft.items.l2": "je eins",
+  "teststation.tsautocraft.items.l3": ""
 }

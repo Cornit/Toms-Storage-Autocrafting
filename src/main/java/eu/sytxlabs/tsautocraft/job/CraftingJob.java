@@ -718,6 +718,16 @@ public class CraftingJob {
 		return state;
 	}
 
+	/** What the job crafts (one item, read only; API 4). */
+	public ItemStack target() {
+		return target;
+	}
+
+	/** How many of {@link #target()} the job crafts (API 4). */
+	public long amount() {
+		return amount;
+	}
+
 	public boolean isFinished() {
 		return state == State.DONE || state == State.CANCELLED;
 	}

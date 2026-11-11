@@ -20,6 +20,7 @@ Download: [Modrinth](https://modrinth.com/mod/toms-storage-autocrafting) · [Cur
 | **Directional Crafting Emitter** (+ Framed) | Same, in cable-connector shape: the signal only goes out of its front. Convert between both in a crafting grid.                                                 |
 | **Blank / Encoded Pattern**                 | Put an encoded pattern into a crafting grid to wipe it. Rename patterns in an anvil; re-encoding keeps the name.                                                |
 | **Upgrades**                                | Capacity, Speed, Stack, Crafting, Redstone (see below).                                                                                                         |
+| **Memory Card**                             | Shift + right click copies a block's settings, right click applies them to a block of the same type (filters and upgrades come from your inventory).            |
 
 Exporter, Importer, the Pattern Provider Connector and the Directional Crafting Emitter use the shape of Tom's Inventory Cable Connector. **Framed** variants are
 full blocks that can be painted with Tom's Paint Kit and scraped clean with an axe, like Tom's framed cables (recipe: 4 sticks
@@ -87,7 +88,7 @@ it takes matching empty containers from the network, fills them and stores the r
 
 * Request in the Autocrafting Terminal, or right in any of Tom's terminals: craftable items show a green **+** (amount 0 if
   none is stored); click (or Ctrl+click) opens the request screen with the material list. Missing items? "Craft N" offers the
-  largest amount that works right now.
+  largest amount that works right now. "Tree" shows the plan as a graph (drag, zoom, fold nodes) and can start the job.
 * Intermediates are planned recursively; stock and surplus (e.g. 4 planks instead of 1) are reused. Jobs **reserve** their
   raw materials, so other jobs and Exporters do not take them.
 * The job list shows all jobs of the network. Hover a job: every step with its progress and why it is stuck (missing item
@@ -95,6 +96,7 @@ it takes matching empty containers from the network, fills them and stores the r
   * **↑ · ↓** priority (high / normal / low): higher priority jobs get free providers first.
   * **Ⅱ / ▶** pause / resume: a paused job frees its reserved items.
   * **✕** cancel.
+* History tab: finished and cancelled jobs; **↻** requests one of your jobs again.
 * Tom's (Advanced) Wireless Terminal also opens the Autocrafting Terminal and the Pattern Terminal from afar.
 
 ### Requester, Exporter, Importer
@@ -121,14 +123,15 @@ Upgrades sit in the panel right of the GUI; several of the same kind can share o
 ## Compatibility
 
 * **JEI** and **REI**: recipe transfer and ghost drag (REI is untested in game). EMI and WTHIT have no 26.3 build yet.
-* **Jade**: status of providers (patterns, machines, blocking), terminals (jobs), requesters, emitters and exporters.
+* **Jade**: status of providers (patterns, machines, blocking, crafts/min), terminals (jobs), requesters, emitters, importers and exporters (items/min).
 * **Mod Menu**: config screen (Cloth Config ships with Tom's Storage).
 
 ## Configuration
 
 `config/tsautocraft.json` or the Mod Menu screen: crafter trigger, crafter timings, jobs per terminal, largest request,
 job timeouts, requester and Importer/Exporter timings, craftable list refresh. In singleplayer changes in the screen apply right
-away; a dedicated server reads the file at startup.
+away; a dedicated server reads the file at startup or on `/tsautocraft reload` (admins; `/tsautocraft jobs` and
+`/tsautocraft cancel <id>` list and cancel jobs of all networks).
 
 ## Datapacks
 
@@ -143,7 +146,9 @@ away; a dedicated server reads the file at startup.
 
 ## API (for other mods)
 
-Everything in `eu.sytxlabs.tsautocraft.api` is public API (`TsAutocraftApi.VERSION`); `gradlew build` also produces an
+Everything in `eu.sytxlabs.tsautocraft.api` is public API (`TsAutocraftApi.VERSION`, currently 4: since 4 also
+`StockExtensions`, `NetworkBridges`, `TerminalReach`, `FluidUnits`, `TsAutocraftApi.itemsArrived/activeAmount` and
+`PatternMode.maxInputs/maxOutputs`); `gradlew build` also produces an
 `-api.jar` to compile against. The API jar (and its sources) is only published on the
 [GitHub releases](https://github.com/SytxLabs/Toms-Storage-Autocrafting/releases), not on Modrinth or CurseForge.
 
@@ -167,6 +172,7 @@ gradlew :26.3-fabric:runClient         # Fabric test client with Tom's Storage, 
 gradlew :26.3-neoforge:runClient       # NeoForge test client (run directory run-neoforge)
                                        # (-PnoJei, -PnoJade leave them out, -PwithModMenu adds Mod Menu on Fabric)
 gradlew :26.3-fabric:plannerTest       # tests the crafting planner without Minecraft
+gradlew :26.3-fabric:runGametest       # game tests on a headless Fabric server (crafter, furnace, cancel, reservations)
 ```
 
 One source tree for all loaders and Minecraft versions ([Stonecutter](https://stonecutter.kikugie.dev)): shared code in

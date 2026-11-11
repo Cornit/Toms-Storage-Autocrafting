@@ -156,7 +156,7 @@ public class ExporterBlockEntity extends AbstractIOBlockEntity implements JobOwn
 			long room = StorageUtil.simulateInsert(target, proto, Math.min(free, Math.min(maxPerOp(), proto.getMaxStackSize())));
 			if (room <= 0) continue;
 
-			ItemStack pulled = StorageUtil.pull(net, proto, room);
+			ItemStack pulled = StorageUtil.pull(net, level, proto, room);
 			if (pulled.isEmpty() || level == null) continue;
 
 			ItemStack rest = StorageUtil.insert(target, pulled);

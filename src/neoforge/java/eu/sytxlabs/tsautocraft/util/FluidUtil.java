@@ -103,6 +103,9 @@ public final class FluidUtil {
 
 	/** What one {@code stack} item holds and what is left after emptying it, null if it is no filled fluid container. */
 	public static Content content(ItemStack stack) {
+		// Fluid unit (API 4): 1 mB per item, nothing left after emptying
+		net.minecraft.world.level.material.Fluid unit = eu.sytxlabs.tsautocraft.api.FluidUnits.fluid(stack);
+		if (unit != null) return new Content(FluidVariant.of(FluidResource.of(unit)), 1, ItemStack.EMPTY);
 		Container c = Container.of(stack);
 		if (c == null) return null;
 		FluidResource f = null;
@@ -130,6 +133,16 @@ public final class FluidUtil {
 	 * @return the empty container (maybe {@link ItemStack#EMPTY}), or null if the fluid did not fit
 	 */
 	public static ItemStack emptyInto(ItemStack stack, Storage<FluidVariant> target, TransactionContext tx) {
+		net.minecraft.world.level.material.Fluid unit = eu.sytxlabs.tsautocraft.api.FluidUnits.fluid(stack);
+		if (unit != null) {
+			// Fluid unit: the whole stack (count mB) at once
+			long a = stack.getCount();
+			try (Transaction t = tx.openNested()) {
+				if (target.insert(FluidVariant.of(FluidResource.of(unit)), a, t) != a) return null;
+				t.commit();
+			}
+			return ItemStack.EMPTY;
+		}
 		Container c = Container.of(stack);
 		if (c == null) return null;
 		// Collect first: the container's contents change while it is emptied

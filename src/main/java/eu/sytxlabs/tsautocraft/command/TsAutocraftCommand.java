@@ -33,6 +33,12 @@ public final class TsAutocraftCommand {
 		dispatcher.register(Commands.literal("tsautocraft")
 				.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 				.then(Commands.literal("reload").executes(TsAutocraftCommand::reload))
+				.then(Commands.literal("testsetup").executes(c -> {
+					var lines = TestSetup.build(c.getSource().getPlayerOrException());
+					c.getSource().sendSuccess(() -> Component.translatable("command.tsautocraft.testsetup", lines.size()), false);
+					lines.forEach(l -> c.getSource().sendSuccess(() -> l, false));
+					return lines.size();
+				}))
 				.then(Commands.literal("jobs").executes(TsAutocraftCommand::jobs))
 				.then(Commands.literal("cancel").then(Commands.argument("uid", IntegerArgumentType.integer(1)).executes(TsAutocraftCommand::cancel))));
 	}

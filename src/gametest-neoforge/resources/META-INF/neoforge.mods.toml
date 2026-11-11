@@ -1,0 +1,15 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+
+[[mods]]
+modId = "tsautocraft_gametest"
+version = "1.0.0"
+displayName = "Tom's Storage Autocrafting game tests"
+
+[[dependencies.tsautocraft_gametest]]
+modId = "tsautocraft"
+type = "required"
+versionRange = "*"
+ordering = "AFTER"
+side = "BOTH"

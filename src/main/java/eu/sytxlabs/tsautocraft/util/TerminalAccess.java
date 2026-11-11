@@ -18,9 +18,10 @@ public final class TerminalAccess {
 	@SuppressWarnings("resource") // Level is AutoCloseable, but these getters only return the existing level
 	public static boolean stillValid(BlockEntity be, Player player) {
 		if (be.getLevel() == null || be.getLevel().getBlockEntity(be.getBlockPos()) != be) return false;
-		if (player.level() != be.getLevel()) return false;
+		if (eu.sytxlabs.tsautocraft.api.TerminalReach.denied(be, player)) return false;
+		if (player.level() != be.getLevel()) return eu.sytxlabs.tsautocraft.api.TerminalReach.extended(be, player);
 		int range = Math.max(NEAR, PlayerInvUtil.findItem(player, s -> s.getItem() instanceof WirelessTerminal, 0, s -> ((WirelessTerminal) s.getItem()).getRange(player, s)));
 		var p = be.getBlockPos();
-		return player.distanceToSqr(p.getX() + 0.5D, p.getY() + 0.5D, p.getZ() + 0.5D) <= (double) range * range;
+		return player.distanceToSqr(p.getX() + 0.5D, p.getY() + 0.5D, p.getZ() + 0.5D) <= (double) range * range || eu.sytxlabs.tsautocraft.api.TerminalReach.extended(be, player);
 	}
 }

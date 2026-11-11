@@ -525,6 +525,11 @@ public final class BuiltinPatternModes {
 					other.add(st);
 					continue;
 				}
+				if (eu.sytxlabs.tsautocraft.api.FluidUnits.is(st)) {
+					// Fluid unit (API 4): count mB in one go
+					if (FluidUtil.emptyInto(st, tank, t) == null) return null;
+					continue;
+				}
 				for (int n = 0; n < st.getCount(); n++) {
 					ItemStack empty = FluidUtil.emptyInto(st.copyWithCount(1), tank, t);
 					if (empty == null) return null;

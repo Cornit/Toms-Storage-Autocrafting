@@ -19,6 +19,7 @@ import com.tom.storagemod.inventory.InventoryCableNetwork;
 
 import eu.sytxlabs.tsautocraft.api.CraftingProvider;
 import eu.sytxlabs.tsautocraft.api.JobOwner;
+import eu.sytxlabs.tsautocraft.api.NetworkBridges;
 import eu.sytxlabs.tsautocraft.job.CraftingJob;
 import eu.sytxlabs.tsautocraft.job.Reservations;
 
@@ -26,14 +27,16 @@ import eu.sytxlabs.tsautocraft.job.Reservations;
  * One shared view of a cable network for all our blocks on it: node block entities, connector, providers (sorted by
  * priority), job owners and the running jobs. Before, every block walked the network on its own.
  * <p>
- * Keyed by the node set Tom's {@link InventoryCableNetwork} returns: Tom builds a new set whenever the network changes,
- * so a snapshot is reused until then, at most {@link #MAX_AGE} ticks (chunk loading does not change the set).
+ * Found by node position (every node of the network maps to the snapshot): Tom's {@link InventoryCableNetwork} only
+ * caches walks that start at a cable, a walk from a node returns a new set every time. A snapshot is reused for at most
+ * {@link #MAX_AGE} ticks, so cable changes show up after that.
  * {@link #invalidate()} drops all snapshots (placement, priority change); the job list is rebuilt once per tick and
  * whenever a job starts ({@link #jobsChanged()}).
  */
 public final class NetworkCache {
 	private static final int MAX_AGE = 20;
-	private static final Map<Level, Map<Collection<BlockPos>, Snapshot>> LEVELS = new WeakHashMap<>();
+	/** Snapshot per node position (every node of a network maps to its snapshot). */
+	private static final Map<Level, Map<BlockPos, Snapshot>> LEVELS = new WeakHashMap<>();
 	private static int epoch, jobsEpoch, patternEpoch;
 
 	private NetworkCache() {}
@@ -54,15 +57,15 @@ public final class NetworkCache {
 	}
 
 	public static Snapshot of(Level level, BlockPos pos) {
-		Collection<BlockPos> nodes = InventoryCableNetwork.getNetwork(level).getNetworkNodes(pos);
-		Map<Collection<BlockPos>, Snapshot> map = LEVELS.computeIfAbsent(level, _ -> new IdentityHashMap<>());
+		Map<BlockPos, Snapshot> map = LEVELS.computeIfAbsent(level, _ -> new java.util.HashMap<>());
 		long now = level.getGameTime();
-		Snapshot s = map.get(nodes);
+		Snapshot s = map.get(pos);
 		if (s != null && s.epoch == epoch && now >= s.built && now - s.built < MAX_AGE) return s;
-		// Old networks (sets Tom has replaced) would stay forever otherwise
-		if (map.size() > 32) map.values().removeIf(o -> now < o.built || now - o.built >= MAX_AGE);
+		Collection<BlockPos> nodes = InventoryCableNetwork.getNetwork(level).getNetworkNodes(pos);
+		if (map.size() > 4096) map.values().removeIf(o -> now < o.built || now - o.built >= MAX_AGE || o.epoch != epoch);
 		s = new Snapshot(level, nodes, now);
-		map.put(nodes, s);
+		for (BlockPos p : nodes) map.put(p, s);
+		map.put(pos.immutable(), s);
 		return s;
 	}
 
@@ -96,6 +99,29 @@ public final class NetworkCache {
 				if (c == null && be instanceof IInventoryConnector ic && ic.hasConnectedInventories()) c = ic;
 				if (be instanceof CraftingProvider cp) p.add(cp);
 				if (be instanceof JobOwner jo) o.add(jo);
+			}
+			// Networks in other levels joined by NetworkBridges (API 4): BFS, every block entity once
+			if (NetworkBridges.any()) {
+				Set<BlockEntity> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+				seen.addAll(n);
+				java.util.ArrayDeque<NetworkBridges.Target> queue = new java.util.ArrayDeque<>();
+				for (BlockEntity be : n) queue.addAll(NetworkBridges.targets(be));
+				while (!queue.isEmpty()) {
+					NetworkBridges.Target t = queue.poll();
+					if (!t.level().isLoaded(t.pos())) continue;
+					BlockEntity entry = t.level().getBlockEntity(t.pos());
+					if (entry != null && seen.contains(entry)) continue;
+					for (BlockPos pos : InventoryCableNetwork.getNetwork(t.level()).getNetworkNodes(t.pos())) {
+						if (!t.level().isLoaded(pos)) continue;
+						BlockEntity be = t.level().getBlockEntity(pos);
+						if (be == null || !seen.add(be)) continue;
+						n.add(be);
+						if (c == null && be instanceof IInventoryConnector ic && ic.hasConnectedInventories()) c = ic;
+						if (be instanceof CraftingProvider cp) p.add(cp);
+						if (be instanceof JobOwner jo) o.add(jo);
+						queue.addAll(NetworkBridges.targets(be));
+					}
+				}
 			}
 			p.sort(java.util.Comparator.comparingInt(CraftingProvider::providerPriority).reversed());
 			nodes = Collections.unmodifiableList(n);

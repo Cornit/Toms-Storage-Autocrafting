@@ -65,6 +65,19 @@ public interface PatternMode {
 		return List.of();
 	}
 
+	/**
+	 * Most inputs a pattern of this mode may have (API 4). JEI/REI transfers with more inputs are refused; more than 9
+	 * can only be encoded by a transfer (the Pattern Terminal grid has 9 slots), e.g. a 9x9 mechanical crafting recipe.
+	 */
+	default int maxInputs() {
+		return 9;
+	}
+
+	/** Most outputs a pattern of this mode may have (API 4). */
+	default int maxOutputs() {
+		return 3;
+	}
+
 	/** Builds the pattern from the Pattern Terminal grid (or a JEI/REI transfer). */
 	PatternEncoder.Result encode(Level level, List<ItemStack> grid, List<ItemStack> outputs, boolean substitutes);
 

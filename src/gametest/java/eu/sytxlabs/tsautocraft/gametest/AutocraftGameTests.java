@@ -199,4 +199,16 @@ public class AutocraftGameTests {
 		CompoundTag tag = be.saveWithoutMetadata(reg);
 		be.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, reg, tag));
 	}
+
+	/** {@code /tsautocraft testsetup} builds its stations with valid patterns (far away, not to disturb other tests). */
+	@GameTest(maxTicks = 20)
+	public void testSetup(GameTestHelper h) {
+		var player = h.makeMockServerPlayerInLevel();
+		player.setPos(h.absolutePos(BlockPos.ZERO).getX() + 30_000.5, 220, h.absolutePos(BlockPos.ZERO).getZ() + 0.5);
+		var lines = eu.sytxlabs.tsautocraft.command.TestSetup.build(player);
+		h.assertValueEqual(lines.size(), 4, "4 stations and no pattern errors: " + lines.stream().map(c -> c.getString()).toList());
+		BlockPos provider = player.blockPosition().offset(2 + 3, 0, 4 + 2);
+		h.assertTrue(h.getLevel().getBlockEntity(provider) instanceof PatternProviderBlockEntity p && p.getPatterns().size() == 3, "3 crafting patterns in the provider");
+		h.succeed();
+	}
 }

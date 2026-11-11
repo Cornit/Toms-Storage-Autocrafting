@@ -76,6 +76,11 @@ public class TsAutocraftReiPlugin implements REIClientPlugin {
 					st = is.copy();
 					break;
 				}
+				ItemStack bucket = eu.sytxlabs.tsautocraft.compat.FluidIngredients.toBuckets(e.getValue()); // fluid entries
+				if (!bucket.isEmpty()) {
+					st = bucket;
+					break;
+				}
 			}
 			if (keepEmpty || !st.isEmpty()) l.add(st);
 		}
@@ -115,7 +120,8 @@ public class TsAutocraftReiPlugin implements REIClientPlugin {
 			if (in.stream().allMatch(ItemStack::isEmpty) || (!mode.fixedInputs() && out.isEmpty())) {
 				return Result.createFailed(Component.translatable("msg.tsautocraft.jei.no_items"));
 			}
-			if (in.size() > 9) return Result.createFailed(Component.translatable("msg.tsautocraft.jei.too_many"));
+			if (in.size() > mode.maxInputs()) return Result.createFailed(Component.translatable("msg.tsautocraft.jei.too_many"));
+			if (in.size() > 9 && !provider) return Result.createFailed(Component.translatable("msg.tsautocraft.jei.provider_only"));
 			if (provider) {
 				PatternProviderMenu pm = (PatternProviderMenu) menu;
 				if (pm.freePatternSlot() < 0) return Result.createFailed(Component.translatable("msg.tsautocraft.jei.provider_full"));
@@ -130,7 +136,7 @@ public class TsAutocraftReiPlugin implements REIClientPlugin {
 					var li = o.list("jei_in", ItemStack.OPTIONAL_CODEC);
 					in.forEach(li::add);
 					var lo = o.list("jei_out", ItemStack.OPTIONAL_CODEC);
-					out.stream().limit(3).forEach(lo::add);
+					out.stream().limit(mode.maxOutputs()).forEach(lo::add);
 				});
 			}
 			return Result.createSuccessful().blocksFurtherHandling();
