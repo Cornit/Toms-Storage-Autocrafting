@@ -1,7 +1,8 @@
 package eu.sytxlabs.tsautocraft.block;
 
+import com.tom.storagemod.block.AbstractStorageTerminalBlock;
+import eu.sytxlabs.tsautocraft.blockentity.PatternAccessTerminalBlockEntity;
 import java.util.function.Consumer;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionResult;
@@ -15,9 +16,10 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 
-import com.tom.storagemod.block.AbstractStorageTerminalBlock;
+//? if <26.3 {
 
-import eu.sytxlabs.tsautocraft.blockentity.PatternAccessTerminalBlockEntity;
+/*import com.mojang.serialization.MapCodec;
+*///?}
 
 /**
  * Pattern Access Terminal: shape, placement and cable connection of a Tom's terminal (connects only on its back); the GUI shows the pattern slots of every Pattern Provider on the network.
@@ -27,6 +29,13 @@ public class PatternAccessTerminalBlock extends AbstractStorageTerminalBlock {
 	public PatternAccessTerminalBlock(Block.Properties properties) {
 		super(properties);
 	}
+
+	//? if <26.3 {
+	/*@Override
+	protected MapCodec<? extends AbstractStorageTerminalBlock> codec() {
+		return MapCodec.unit(this);
+	}
+	*///?}
 
 	@Override
 	public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
