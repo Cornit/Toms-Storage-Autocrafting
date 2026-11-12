@@ -33,6 +33,16 @@ jobs:
       - name: Game tests (Fabric 26.3, headless server)
         run: ./gradlew :26.3-fabric:runGametest --stacktrace
 
+      - name: Game tests (NeoForge 26.2, headless server)
+        run: ./gradlew :26.2-neoforge:runGameTestServer --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gametest-report-26.2-neoforge
+          path: versions/26.2-neoforge/build/gametest/report.xml
+          if-no-files-found: ignore
+
       - name: Check tag against mod version
         run: |
           VERSION=$(grep -E '^mod.version' stonecutter.properties.toml | sed -E 's/.*"(.*)".*/\1/')

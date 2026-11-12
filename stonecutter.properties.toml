@@ -39,7 +39,7 @@ deps.modmenu = "iRo7AZXf"
 [fabric."26.3"]
 # Range in fabric.mod.json
 mod.mc_compat = ">=26.3 <26.4"
-mod.toms_compat = ">=2.12.2 <2.13.0"
+mod.toms_compat = ">=2.12.2"
 deps.fabric_api = "0.160.5+26.3"
 # Modrinth maven: Tom's Storage version number, the others are version ids (JEI 31.17.0.108, MezzConfig 0.6.10, Jade 26.3.5)
 deps.toms_storage = "26.3-2.12.2-fabric"

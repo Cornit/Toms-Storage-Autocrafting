@@ -70,6 +70,11 @@ public record MachineProfile(List<Direction> sides, int redstonePulse, Optional<
 		}
 
 		/** Is this route for {@code stack}, the input at {@code index} of the pattern? */
+		public boolean matches(ItemStack stack, int index) {
+			return matches(stack, index, null);
+		}
+
+		/** Is this route for {@code stack}, the input at {@code index} of the pattern? */
 		public boolean matches(ItemStack stack, int index, Level level) {
 			if (inputs.contains(index)) return true;
 			if (fuel.isPresent()) {
@@ -111,6 +116,11 @@ public record MachineProfile(List<Direction> sides, int redstonePulse, Optional<
 
 	public MachineProfile(List<Direction> sides, int redstonePulse, Optional<Boolean> blocking) {
 		this(sides, redstonePulse, blocking, List.of(), 0);
+	}
+
+	/** Faces for the input {@code stack} at {@code index} of the pattern, without level-specific fuel matching. */
+	public List<Direction> sidesFor(ItemStack stack, int index) {
+		return sidesFor(stack, index, null);
 	}
 
 	/** Faces for the input {@code stack} at {@code index} of the pattern: its route's, else {@link #sides()} (empty = the face towards the provider). */

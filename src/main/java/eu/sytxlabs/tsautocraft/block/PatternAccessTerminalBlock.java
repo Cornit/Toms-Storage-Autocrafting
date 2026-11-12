@@ -1,8 +1,7 @@
 package eu.sytxlabs.tsautocraft.block;
 
-import com.tom.storagemod.block.AbstractStorageTerminalBlock;
-import eu.sytxlabs.tsautocraft.blockentity.PatternAccessTerminalBlockEntity;
 import java.util.function.Consumer;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionResult;
@@ -15,6 +14,10 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+
+import com.tom.storagemod.block.AbstractStorageTerminalBlock;
+
+import eu.sytxlabs.tsautocraft.blockentity.PatternAccessTerminalBlockEntity;
 
 //? if <26.3 {
 
