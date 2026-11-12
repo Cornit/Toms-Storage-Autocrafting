@@ -10,8 +10,8 @@ Download: [Modrinth](https://modrinth.com/mod/toms-storage-autocrafting) · [Cur
 
 | Minecraft | Loader | Loader/API (tested version) | Tom's Storage |
 |---|---|---|---|
-| **26.2** | Fabric | Fabric Loader 0.19+; Fabric API 0.161.0+26.2 | 2.11.4+ |
-| **26.2** | NeoForge | NeoForge 26.2.0.93 | 2.11.3+ |
+| **26.2** | Fabric | Fabric Loader 0.19+; Fabric API 0.161.0+26.2 | 2.11.4+, < 2.12.0 |
+| **26.2** | NeoForge | NeoForge 26.2.0.93 | 2.11.3+, < 2.12.0 |
 | **26.3** | Fabric | Fabric Loader 0.19+; Fabric API 0.160.5+26.3 | 2.12.2+ |
 | **26.3** | NeoForge | NeoForge 26.3.0.102 | 2.12.2+ |
 
